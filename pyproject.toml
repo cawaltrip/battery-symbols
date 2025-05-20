@@ -9,6 +9,7 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9,<4.0"
 dependencies = [
+    "svg-py (>=1.6.0,<2.0.0)"
 ]
 
 
@@ -18,4 +19,5 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
+setuptools = "^80.7.1"
 
