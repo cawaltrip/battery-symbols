@@ -1,0 +1,21 @@
+[project]
+name = "battery-symbols"
+version = "0.1.0"
+description = "Battery symbols and font"
+authors = [
+    {name = "Chris Waltrip",email = "chris@walt.rip"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9,<4.0"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+commitizen = "^4.7.2"
+
