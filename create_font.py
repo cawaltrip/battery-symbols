@@ -29,12 +29,10 @@ def get_viewbox(svg_file):
 def draw_scaled(svg_file: Path, pen, margin=0.9):
     x0, y0, w, h = get_viewbox(svg_file)
     scale = EM_SIZE * margin / max(w, h)
-    # scale = 5
     glyph_width = w * scale
     extra_space = EM_SIZE - glyph_width
     tx = -x0 * scale + extra_space / 2
     ty = -y0 * scale
-    # tx, ty = -x0 * scale, -y0 * scale
     t_pen = TransformPen(pen, (scale, 0, 0, scale, tx, ty))
     SVGPath(str(svg_file)).draw(t_pen)
     return extra_space
@@ -67,13 +65,6 @@ def build_font(svg_paths, starting_codepoint, output_file):
     # .notdef (empty glyph)
     glyf[".notdef"] = TTGlyphPen(None).glyph()
     hmtx[".notdef"] = (ADV_WIDTH, LSB)
-
-    # for cp, name, svg in zip(codepoints, names, svg_paths):
-    #     pen = TTGlyphPen(None)
-    #     draw_scaled(svg, pen)
-    #     glyf[name] = pen.glyph()
-    #     hmtx[name] = (ADV_WIDTH, LSB)
-    #     cmap[cp] = name
 
     for cp, name, svg in zip(codepoints, names, svg_paths):
         tt_pen = TTGlyphPen(None)
@@ -113,18 +104,7 @@ def build_font(svg_paths, starting_codepoint, output_file):
     # ensure output dir exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fb.save(str(output_file))
-    print(f"✅ Saved font: {output_file}")
-
-    glyph_set = set(glyph_order)
-    metrics_set = set(hmtx)
-    missing = set(glyph_order) - set(metrics_set)
-    print(f"🔢 numOfLongMetrics will be {len(metrics_set)}")
-    print(f"🔢 missing: {len(missing)}")
-
-    print("GLYPH ORDER:", list(glyph_order))
-    print("METRICS KEYS:", list(hmtx.keys()))
-    print("num glyphs:", len(glyph_order))
-    print("num metrics:", len(hmtx))
+    print(f"Wrote {output_file}.")
 
 
 if __name__ == "__main__":
