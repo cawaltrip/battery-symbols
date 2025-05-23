@@ -11,4 +11,4 @@ I should note that I'm not a font expert, and there's some work that this font n
 
 ## TODO
 * Figure out the best way to scale and make glyphs properly fit.
-* Clean up the 0% glyphs; the glyphs themselves don't have a "charge level", but the final glyph has an artifact there.  Not sure what's causing it yet. 
+* ~~Clean up the 0% glyphs; the glyphs themselves don't have a "charge level", but the final glyph has an artifact there.  Not sure what's causing it yet.~~ This may just be an artifact in macOS Font Book. 
