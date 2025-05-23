@@ -21,4 +21,5 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
 setuptools = "^80.7.1"
+svgwrite = "^1.4.3"
 

@@ -5,7 +5,11 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import SVGPath
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.svgPathPen import SVGPathPen
+from fontTools.ttLib import TTFont
+from svgwrite import Drawing
 import xml.etree.ElementTree as ET
+from re import compile
 
 
 EM_SIZE = 1000  # units per em
@@ -107,6 +111,88 @@ def build_font(svg_paths, starting_codepoint, output_file):
     print(f"Wrote {output_file}.")
 
 
+def extract_and_save_sample_glyphs(font_path: Path, output_path: Path):
+    """
+    Extract sample glyphs from the font we've created.  Probably good to have
+    the charged and discharged glyphs for charge_level % 10 == 0.  We know
+    the order of the glyphs, so given the starting codepoint we can grab those.
+    :return:
+    List of glyphs that can be converted to SVGs.
+    """
+
+    font = TTFont(str(font_path))
+    glyph_set = font.getGlyphSet()
+
+    icons = [f"battery_charge_{(10 * i):0>3}" for i in range(11)]
+    icons += [f"battery_discharge_{(10 * i):0>3}" for i in range(11)]
+
+    for name in icons:
+        try:
+            glyph = glyph_set.glyfTable.glyphs[name]
+        except KeyError:
+            print(f"Glyph {name} not found.")
+            continue
+        pen = SVGPathPen(glyph_set)
+        glyph.draw(pen, glyph_set.glyfTable)
+        x_min, y_min, x_max, y_max = glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax
+        width = x_max - x_min
+        height = y_max - y_min
+
+        path = pen.getCommands()
+
+        filename = output_path / f"{name}.svg"
+        drawing = Drawing(str(filename), viewBox=f"{x_min} {y_min} {width} {height}")
+        drawing.add(drawing.path(d=path))
+        drawing.save()
+
+def write_cheatsheet(svg_path: Path, script_dir: Path):
+    filelist = svg_path.glob("**/*.svg")
+    pattern = compile(r"battery_(charge|discharge)_(\d{3})\.svg$")
+    files = {}
+
+    for path in filelist:
+        m = pattern.match(path.name)
+        if not m:
+            continue
+
+        kind, num_str = m.groups()  # e.g. kind="charge", num_str="010"
+        pct = int(num_str)  # 10
+        # initialize sub-dict if needed, then assign
+        files.setdefault(pct, {})[kind] = path.relative_to(script_dir)
+
+    # if you want the keys sorted:
+    files = {k: files[k] for k in sorted(files)}
+
+    result = {"files": files}
+    print(result)
+
+    width_px = 60  # tweak to taste
+    lines = []
+
+    # 1) header row
+    pct_list = sorted(files)
+    header = "| " + " | ".join(f"{p}%" for p in pct_list) + " |"
+    lines.append(header)
+
+    # 2) alignment row (centered)
+    align = "| " + " | ".join(":--:" for _ in pct_list) + " |"
+    lines.append(align)
+
+    # 3) content row
+    cells = []
+    for p in pct_list:
+        fn = files[p]
+        cell = (
+            f'<img src="{fn["discharge"]}" width="{width_px}" alt="Discharge {p}%"><br>'
+            f'<img src="{fn["charge"]}"   width="{width_px}" alt="Charge {p}%">'
+        )
+        cells.append(cell)
+
+    lines.append("| " + " | ".join(cells) + " |")
+
+    print("\n".join(lines))
+
+
 if __name__ == "__main__":
     script_dir = Path(__file__).parent
     build_dir = script_dir.joinpath("build")
@@ -114,9 +200,16 @@ if __name__ == "__main__":
     processed_dir = build_dir.joinpath("processed")
     charge_dir = processed_dir.joinpath("charging")
     discharge_dir = processed_dir.joinpath("discharging")
+    examples_dir = script_dir.joinpath("examples")
+    examples_dir.mkdir(parents=True, exist_ok=True)
 
     output_font_file = build_dir.joinpath("BatterySymbols-Regular.ttf")
+    cheatsheet_dir = build_dir.joinpath("cheatsheet")
+    cheatsheet_dir.mkdir(parents=True, exist_ok=True)
 
-    svgs = gather_svgs(discharge_dir, charge_dir)
+    # svgs = gather_svgs(discharge_dir, charge_dir)
+    #
+    # build_font(svgs, BASE_CODEPOINT, output_font_file)
+    extract_and_save_sample_glyphs(output_font_file, examples_dir)
+    write_cheatsheet(examples_dir, script_dir)
 
-    build_font(svgs, BASE_CODEPOINT, output_font_file)
