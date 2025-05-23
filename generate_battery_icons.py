@@ -1,6 +1,12 @@
 from math import sqrt
-from svg import SVG, ViewBoxSpec, M, A, Z, Rect, Path, Arc, l, c, h, L, C, H, V, v, m
 from pathlib import Path as PPath
+
+from svg import (
+    SVG, ViewBoxSpec,
+    Rect, Path, Arc,
+    M, L, H, V, C, Z,
+    m, l, h, v, c,
+)
 
 
 class BatteryCase:
@@ -9,11 +15,12 @@ class BatteryCase:
     Height is set to half the width, stroke-width is width/20,
     corner radius is width/8 by default.
     """
+
     def __init__(self, width):
         self.width = width
         self.stroke_width = width / 20
         self.height = width / 2
-        self.rx = width / 8 # Or just always 15?
+        self.rx = width / 8  # Or just always 15?
         self.ry = self.rx
         self.x = self.stroke_width / 2
         self.y = self.stroke_width / 2
@@ -39,6 +46,7 @@ class Anode:
     """
     Represents the anode semicircle clipped by a vertical chord.
     """
+
     def __init__(self, battery_case: BatteryCase):
         gap = battery_case.stroke_width
         x_outer = battery_case.x + battery_case.width + battery_case.stroke_width / 2
@@ -55,7 +63,7 @@ class Anode:
     def draw(self, elem_id="anode"):
         return Path(
             d=[
-                M(self.x_chord,self.y1),
+                M(self.x_chord, self.y1),
                 Arc(rx=self.r, ry=self.r, angle=0, large_arc=False, sweep=True, x=self.x_chord, y=self.y2),
                 Z()
             ],
@@ -70,6 +78,7 @@ class BatteryChargeLevel:
     """
     Represents the charge level of the battery.
     """
+
     def __init__(self, battery_case: BatteryCase, charging: bool = False, charge_level: int = 100):
         self.gap = battery_case.stroke_width
         self.inset = self.gap * 2
@@ -107,6 +116,7 @@ class LightningBolt:
     Contains the LightningBolt, scaled and centered
     based on the size of the BatteryCase.
     """
+
     def __init__(self, battery_case, base_width, stroke_width=0, color="black"):
         self.stroke_width = stroke_width
         self.fill_color = color
@@ -233,7 +243,7 @@ class LightningBolt:
                     cmds.append(C(
                         cmd.x1 * scale + offset_x, cmd.y1 * scale + offset_y,
                         cmd.x2 * scale + offset_x, cmd.y2 * scale + offset_y,
-                        cmd.x  * scale + offset_x, cmd.y  * scale + offset_y
+                        cmd.x * scale + offset_x, cmd.y * scale + offset_y
                     ))
                 elif isinstance(cmd, c):
                     cmds.append(c(
@@ -267,6 +277,7 @@ class Battery:
     and renders the complete battery SVG, with configurable charge state
     and level.
     """
+
     def __init__(self, width, charging=False, level=100):
         self.base_battery_case_width = 120
         self.case = BatteryCase(width)
@@ -277,8 +288,6 @@ class Battery:
         self.charge_level = BatteryChargeLevel(self.case, self.charging, self.level)
         self.lightning_bolt = LightningBolt(self.case, self.base_battery_case_width)
         self.lightning_bolt_mask = LightningBolt(self.case, self.base_battery_case_width, 12)
-
-
 
     def build_svg(self):
         bc = self.case
