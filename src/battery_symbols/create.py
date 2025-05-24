@@ -15,7 +15,12 @@ from mistletoe.markdown_renderer import MarkdownRenderer
 from mistletoe.span_token import RawText
 from svgwrite import Drawing
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from .config import (
+    PROJECT_ROOT,
+    EXAMPLES_DIR,
+    PROCESSED_CHARGE_DIR,
+    PROCESSED_DISCHARGE_DIR,
+)
 
 EM_SIZE = 1000  # units per em
 # ADV_WIDTH = 600  # default advance‐width
@@ -73,7 +78,7 @@ def build_font(svg_paths, starting_codepoint, output_file):
     glyf[".notdef"] = TTGlyphPen(None).glyph()
     hmtx[".notdef"] = (ADV_WIDTH, LSB)
 
-    for cp, name, svg in zip(codepoints, names, svg_paths):
+    for cp, name, svg in zip(codepoints, names, svg_paths, strict=False):
         tt_pen = TTGlyphPen(None)
         quad_pen = Cu2QuPen(tt_pen, max_err=1.0, all_quadratic=True)
         extra_space = draw_scaled(svg, quad_pen)
@@ -254,21 +259,16 @@ def replace_cheatsheet(
 
 
 def main():
-    build_dir = PROJECT_ROOT / "build"
-    processed_dir = build_dir / "processed"
-    charge_dir = processed_dir / "charging"
-    discharge_dir = processed_dir / "discharging"
-    examples_dir = PROJECT_ROOT / "examples"
     output_font_file = PROJECT_ROOT / "BatterySymbols-Regular.ttf"
     readme_file = PROJECT_ROOT / "README.md"
 
-    examples_dir.mkdir(parents=True, exist_ok=True)
+    EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    svgs = gather_svgs(discharge_dir, charge_dir)
+    svgs = gather_svgs(PROCESSED_DISCHARGE_DIR, PROCESSED_CHARGE_DIR)
 
     build_font(svgs, BASE_CODEPOINT, output_font_file)
-    extract_and_save_sample_glyphs(output_font_file, examples_dir)
-    cheatsheet_content = write_cheatsheet(examples_dir, PROJECT_ROOT, readme_file)
+    extract_and_save_sample_glyphs(output_font_file, EXAMPLES_DIR)
+    cheatsheet_content = write_cheatsheet(EXAMPLES_DIR, PROJECT_ROOT, readme_file)
     replace_cheatsheet(readme_file, cheatsheet_content)
 
 

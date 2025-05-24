@@ -1,30 +1,28 @@
 from pathlib import Path
 from subprocess import run
+from .config import (
+    RAW_DIR,
+    RAW_CHARGE_DIR,
+    PROCESSED_CHARGE_DIR,
+    PROCESSED_DISCHARGE_DIR,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
-    build_dir = PROJECT_ROOT / "build"
-    raw_dir = build_dir / "raw"
-    raw_charge_dir = raw_dir / "charging"
-    # raw_discharge_dir = raw_dir / "discharging"
-    processed_dir = build_dir / "processed"
-    charge_dir = processed_dir / "charging"
-    discharge_dir = processed_dir / "discharging"
+    PROCESSED_CHARGE_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_DISCHARGE_DIR.mkdir(parents=True, exist_ok=True)
 
-    charge_dir.mkdir(parents=True, exist_ok=True)
-    discharge_dir.mkdir(parents=True, exist_ok=True)
-
-    svg_files = [x for x in raw_dir.glob("**/*.svg") if x.is_file()]
+    svg_files = [x for x in RAW_DIR.glob("**/*.svg") if x.is_file()]
 
     for f in svg_files:
         charge_level = int(f.stem.split("_")[2])
-        if f.is_relative_to(raw_charge_dir):
-            processed_dir = charge_dir
+        if f.is_relative_to(RAW_CHARGE_DIR):
+            final_dir = PROCESSED_CHARGE_DIR
         else:
-            processed_dir = discharge_dir
-        processed_filename = processed_dir.joinpath(f.name)
+            final_dir = PROCESSED_DISCHARGE_DIR
+        processed_filename = final_dir.joinpath(f.name)
 
         try:
             actions_commands = [
@@ -42,7 +40,7 @@ def main():
                     "unselect-by-id:charge-level",
                 ]
 
-            if f.is_relative_to(raw_charge_dir):
+            if f.is_relative_to(RAW_CHARGE_DIR):
                 actions_commands += [
                     "select-by-id:lightning-bolt-bc-mask",
                     "object-stroke-to-path",
