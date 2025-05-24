@@ -1,11 +1,22 @@
 from math import sqrt
-from pathlib import Path as PPath
 
 from svg import (
-    SVG, ViewBoxSpec,
-    Rect, Path, Arc,
-    M, L, H, V, C, Z,
-    m, l, h, v, c,
+    SVG,
+    Arc,
+    C,
+    H,
+    L,
+    M,
+    Path,
+    Rect,
+    V,
+    ViewBoxSpec,
+    Z,
+    c,
+    h,
+    l,
+    m,
+    v,
 )
 
 
@@ -38,7 +49,7 @@ class BatteryCase:
             fill=self.fill,
             stroke=self.stroke,
             stroke_width=self.stroke_width,
-            id=elem_id
+            id=elem_id,
         )
 
 
@@ -54,8 +65,10 @@ class Anode:
         self.r = battery_case.height / 4
         delta_x = self.r / 3
         self.cx = self.x_chord - delta_x
-        self.cy = (battery_case.y + battery_case.height + battery_case.stroke_width / 2) / 2
-        delta_y = sqrt(self.r ** 2 - delta_x ** 2)
+        self.cy = (
+            battery_case.y + battery_case.height + battery_case.stroke_width / 2
+        ) / 2
+        delta_y = sqrt(self.r**2 - delta_x**2)
         self.y1 = self.cy - delta_y
         self.y2 = self.cy + delta_y
         self.fill = battery_case.stroke
@@ -64,12 +77,20 @@ class Anode:
         return Path(
             d=[
                 M(self.x_chord, self.y1),
-                Arc(rx=self.r, ry=self.r, angle=0, large_arc=False, sweep=True, x=self.x_chord, y=self.y2),
-                Z()
+                Arc(
+                    rx=self.r,
+                    ry=self.r,
+                    angle=0,
+                    large_arc=False,
+                    sweep=True,
+                    x=self.x_chord,
+                    y=self.y2,
+                ),
+                Z(),
             ],
             stroke="none",
             fill=self.fill,
-            id=elem_id
+            id=elem_id,
         )
         # doc.path(d=path_d, fill=self.fill, stroke="none", id=elem_id)
 
@@ -79,7 +100,9 @@ class BatteryChargeLevel:
     Represents the charge level of the battery.
     """
 
-    def __init__(self, battery_case: BatteryCase, charging: bool = False, charge_level: int = 100):
+    def __init__(
+        self, battery_case: BatteryCase, charging: bool = False, charge_level: int = 100
+    ):
         self.gap = battery_case.stroke_width
         self.inset = self.gap * 2
         self.x = battery_case.x + self.inset
@@ -107,7 +130,7 @@ class BatteryChargeLevel:
             ry=self.ry,
             fill=self.fill_color,
             stroke="none",
-            id=self.id
+            id=self.id,
         )
 
 
@@ -124,34 +147,34 @@ class LightningBolt:
         bc_width, bc_height = battery_case.width, battery_case.height
         bc_x, bc_y = battery_case.x, battery_case.y
 
-        transform_scale = (bc_width / base_width)
+        transform_scale = bc_width / base_width
 
         # 2) define raw bolt as svg.py command-objects (absolute coords)
         raw = [
             M(57.12, 60.58),
             l(23.51, -29.46),
-            c(.44, -.59, .68, -1.16, .68, -1.71),
-            c(0, -1.06, -.86, -1.86, -1.96, -1.86),
+            c(0.44, -0.59, 0.68, -1.16, 0.68, -1.71),
+            c(0, -1.06, -0.86, -1.86, -1.96, -1.86),
             h(-14.48),
             l(7.72, -20.77),
-            c(.65, -1.84, -.42, -3.13, -1.72, -3.13),
-            c(-.65, 0, -1.35, .32, -1.93, 1.05),
+            c(0.65, -1.84, -0.42, -3.13, -1.72, -3.13),
+            c(-0.65, 0, -1.35, 0.32, -1.93, 1.05),
             l(-23.51, 29.47),
-            c(-.44, .59, -.73, 1.15, -.73, 1.70),
-            c(0, 1.06, .90, 1.86, 1.97, 1.86),
+            c(-0.44, 0.59, -0.73, 1.15, -0.73, 1.70),
+            c(0, 1.06, 0.90, 1.86, 1.97, 1.86),
             h(14.51),
             l(-7.72, 20.81),
-            c(-.68, 1.83, .39, 3.10, 1.70, 3.10),
-            c(.66, 0, 1.38, -.32, 1.96, -1.06),
-            Z()
+            c(-0.68, 1.83, 0.39, 3.10, 1.70, 3.10),
+            c(0.66, 0, 1.38, -0.32, 1.96, -1.06),
+            Z(),
         ]
 
         if transform_scale != 1:
 
             # 3) compute original bounding box
             x = y = 0.0
-            min_x = min_y = float('inf')
-            max_x = max_y = float('-inf')
+            min_x = min_y = float("inf")
+            max_x = max_y = float("-inf")
 
             for cmd in raw:
                 if isinstance(cmd, M):
@@ -208,26 +231,14 @@ class LightningBolt:
             cmds = []
             for cmd in raw:
                 if isinstance(cmd, M):
-                    cmds.append(M(
-                        cmd.x * scale + offset_x,
-                        cmd.y * scale + offset_y
-                    ))
+                    cmds.append(M(cmd.x * scale + offset_x, cmd.y * scale + offset_y))
                 elif isinstance(cmd, m):
-                    cmds.append(m(
-                        cmd.dx * scale,
-                        cmd.dy * scale
-                    ))
+                    cmds.append(m(cmd.dx * scale, cmd.dy * scale))
                 elif isinstance(cmd, L):
                     print("got L")
-                    cmds.append(L(
-                        cmd.x * scale + offset_x,
-                        cmd.y * scale + offset_y
-                    ))
+                    cmds.append(L(cmd.x * scale + offset_x, cmd.y * scale + offset_y))
                 elif isinstance(cmd, l):
-                    cmds.append(l(
-                        cmd.dx * scale,
-                        cmd.dy * scale
-                    ))
+                    cmds.append(l(cmd.dx * scale, cmd.dy * scale))
                 elif isinstance(cmd, H):
                     print("got H")
                     cmds.append(H(cmd.x * scale + offset_x))
@@ -240,17 +251,27 @@ class LightningBolt:
                     cmds.append(v(cmd.dy * scale))
                 elif isinstance(cmd, C):
                     print("got C")
-                    cmds.append(C(
-                        cmd.x1 * scale + offset_x, cmd.y1 * scale + offset_y,
-                        cmd.x2 * scale + offset_x, cmd.y2 * scale + offset_y,
-                        cmd.x * scale + offset_x, cmd.y * scale + offset_y
-                    ))
+                    cmds.append(
+                        C(
+                            cmd.x1 * scale + offset_x,
+                            cmd.y1 * scale + offset_y,
+                            cmd.x2 * scale + offset_x,
+                            cmd.y2 * scale + offset_y,
+                            cmd.x * scale + offset_x,
+                            cmd.y * scale + offset_y,
+                        )
+                    )
                 elif isinstance(cmd, c):
-                    cmds.append(c(
-                        cmd.dx1 * scale, cmd.dy1 * scale,
-                        cmd.dx2 * scale, cmd.dy2 * scale,
-                        cmd.dx * scale, cmd.dy * scale
-                    ))
+                    cmds.append(
+                        c(
+                            cmd.dx1 * scale,
+                            cmd.dy1 * scale,
+                            cmd.dx2 * scale,
+                            cmd.dy2 * scale,
+                            cmd.dx * scale,
+                            cmd.dy * scale,
+                        )
+                    )
                 elif isinstance(cmd, Z):
                     cmds.append(Z())
                 else:  # Z()
@@ -267,7 +288,7 @@ class LightningBolt:
             fill=self.fill_color,
             stroke=self.fill_color,
             stroke_width=self.stroke_width,
-            id=elem_id
+            id=elem_id,
         )
 
 
@@ -287,7 +308,9 @@ class Battery:
         self.level = max(0, min(100, level))
         self.charge_level = BatteryChargeLevel(self.case, self.charging, self.level)
         self.lightning_bolt = LightningBolt(self.case, self.base_battery_case_width)
-        self.lightning_bolt_mask = LightningBolt(self.case, self.base_battery_case_width, 12)
+        self.lightning_bolt_mask = LightningBolt(
+            self.case, self.base_battery_case_width, 12
+        )
 
     def build_svg(self):
         bc = self.case
@@ -309,29 +332,6 @@ class Battery:
             viewBox=view_box,
             id="battery",
             xmlns="http://www.w3.org/2000/svg",
-            elements=elements
+            elements=elements,
         )
         return doc
-
-
-if __name__ == "__main__":
-    script_dir = PPath(__file__).parent
-    build_dir = script_dir.joinpath("build")
-    raw_dir = build_dir.joinpath("raw")
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    charge_dir = raw_dir.joinpath("charging")
-    charge_dir.mkdir(parents=True, exist_ok=True)
-    discharge_dir = raw_dir.joinpath("discharging")
-    discharge_dir.mkdir(parents=True, exist_ok=True)
-
-    for charge in [True, False]:
-        for i in range(101):
-            glyph_name = f"battery_{'charge' if charge else 'discharge'}_{i:0>3}.svg"
-            out_dir = charge_dir if charge else discharge_dir
-            glyph_path = out_dir.joinpath(glyph_name)
-
-            glyph = Battery(width=120, charging=charge, level=i)
-            svg_doc = glyph.build_svg()
-
-            with glyph_path.open('w') as f:
-                f.write(str(svg_doc))

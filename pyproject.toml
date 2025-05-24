@@ -11,15 +11,72 @@ requires-python = ">=3.9,<4.0"
 dependencies = [
     "svg-py (>=1.6.0,<2.0.0)",
     "fonttools (>=4.58.0,<5.0.0)",
+    "mistletoe (>=1.4.0,<2.0.0)",
+    "svgwrite (>=1.4.3,<2.0.0)",
+    "flake8-pyproject (>=1.2.3,<2.0.0)",
 ]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry]
+packages = [
+  { include = "battery_symbols", from = "src" }
+]
+
+[tool.poetry.scripts]
+generate-icons   = "battery_symbols.generate:main"
+normalize-icons  = "battery_symbols.normalize:main"
+create-font      = "battery_symbols.create:main"
+
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
-setuptools = "^80.7.1"
-svgwrite = "^1.4.3"
+pre-commit = "^4.2.0"
+black = "^25.1.0"
+flake8 = "^7.2.0"
+isort = "^6.0.1"
+mypy = "^1.15.0"
+flake8-bugbear = "^24.12.12"
 
+[tool.black]
+# match Black’s defaults, maybe tweak line-length
+line-length = 88
+target-version = ["py39"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+# play nicely with Black
+profile = "black"
+# match Black’s line-length
+line_length = 88
+known_first_party = ["battery_symbols"]
+
+[tool.flake8]
+# match Black & isort
+max-line-length = 88
+extend-ignore = ["E203", "E501", "E701", "W503"]
+extend-select = ["B950"]
+# point Flake8 at your src/ and tests/
+exclude = ["build", ".venv", "dist", "__pycache__", "src/battery_symbols/__init__.py"]
+
+
+[tool.mypy]
+# your minimum supported Python
+python_version = 3.9
+# relax missing-stub errors
+ignore_missing_imports = true
+# if you want “strict” mode you can enable more here:
+# strict = true
