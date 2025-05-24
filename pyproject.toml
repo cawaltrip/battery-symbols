@@ -26,7 +26,7 @@ packages = [
 [tool.poetry.scripts]
 generate-icons   = "battery_symbols.generate:main"
 normalize-icons  = "battery_symbols.normalize:main"
-create-font              = "battery_symbols.create_font:main"
+create-font      = "battery_symbols.create:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
