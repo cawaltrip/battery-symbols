@@ -4,14 +4,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def main():
-    script_dir = Path(__file__).parent
-    build_dir = script_dir.joinpath("build")
-    raw_dir = build_dir.joinpath("raw")
-    raw_charge_dir = raw_dir.joinpath("charging")
-    raw_discharge_dir = raw_dir.joinpath("discharging")
-    processed_dir = build_dir.joinpath("processed")
-    charge_dir = processed_dir.joinpath("charging")
-    discharge_dir = processed_dir.joinpath("discharging")
+    build_dir = PROJECT_ROOT / "build"
+    raw_dir = build_dir / "raw"
+    raw_charge_dir = raw_dir / "charging"
+    raw_discharge_dir = raw_dir / "discharging"
+    processed_dir = build_dir / "processed"
+    charge_dir = processed_dir / "charging"
+    discharge_dir = processed_dir / "discharging"
 
     charge_dir.mkdir(parents=True, exist_ok=True)
     discharge_dir.mkdir(parents=True, exist_ok=True)
@@ -28,7 +27,7 @@ def main():
 
         try:
             actions_commands = [
-                f"file-open:{f.relative_to(script_dir)}",
+                f"file-open:{f.relative_to(PROJECT_ROOT)}",
                 "select-by-id:battery-case",
                 "object-stroke-to-path",
                 "unselect-by-id:battery-case",
@@ -75,7 +74,7 @@ def main():
 
             actions_commands += [
                 "export-plain-svg",
-                f"export-filename:{processed_filename.relative_to(script_dir)}",
+                f"export-filename:{processed_filename.relative_to(PROJECT_ROOT)}",
                 "export-do;"
             ]
         except ValueError:

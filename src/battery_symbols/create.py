@@ -255,8 +255,6 @@ def replace_cheatsheet(readme_path: Path, new_content: str, cheatsheet_heading: 
             f.write(renderer.render(doc))
 
 
-
-
 def main():
     build_dir = PROJECT_ROOT / "build"
     processed_dir = build_dir / "processed"
