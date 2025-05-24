@@ -11,15 +11,24 @@ requires-python = ">=3.9,<4.0"
 dependencies = [
     "svg-py (>=1.6.0,<2.0.0)",
     "fonttools (>=4.58.0,<5.0.0)",
+    "mistletoe (>=1.4.0,<2.0.0)",
 ]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry]
+packages = [
+  { include = "battery_symbols", from = "src" }
+]
+
+[tool.poetry.scripts]
+generate-icons   = "battery_symbols.generate:main"
+normalize-icons  = "battery_symbols.normalize:main"
+create-font              = "battery_symbols.create_font:main"
+
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
-setuptools = "^80.7.1"
 svgwrite = "^1.4.3"
 
