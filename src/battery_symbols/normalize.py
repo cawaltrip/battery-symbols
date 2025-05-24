@@ -1,13 +1,14 @@
-from subprocess import run
 from pathlib import Path
+from subprocess import run
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def main():
     build_dir = PROJECT_ROOT / "build"
     raw_dir = build_dir / "raw"
     raw_charge_dir = raw_dir / "charging"
-    raw_discharge_dir = raw_dir / "discharging"
+    # raw_discharge_dir = raw_dir / "discharging"
     processed_dir = build_dir / "processed"
     charge_dir = processed_dir / "charging"
     discharge_dir = processed_dir / "discharging"
@@ -68,30 +69,22 @@ def main():
                         "unselect-by-id:charge-level",
                         "select-by-id:lightning-bolt-cl-mask",
                     ]
-                actions_commands += [
-                    "delete-selection"
-                ]
+                actions_commands += ["delete-selection"]
 
             actions_commands += [
                 "export-plain-svg",
                 f"export-filename:{processed_filename.relative_to(PROJECT_ROOT)}",
-                "export-do;"
+                "export-do;",
             ]
         except ValueError:
             print(f"cannot find path for: {f.name}")
             continue
 
-        actions = ';'.join(actions_commands)
+        actions = ";".join(actions_commands)
         print(f"actions = {actions}")
 
-        try:
-            run([
-                "inkscape",
-                "--batch-process",
-                f"--actions={actions}"
-            ], check=True)
-        except:
-            print("something failed")
+        run(["inkscape", "--batch-process", f"--actions={actions}"], check=True)
+
 
 if __name__ == "__main__":
     main()

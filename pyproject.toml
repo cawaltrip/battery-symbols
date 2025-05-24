@@ -13,6 +13,7 @@ dependencies = [
     "fonttools (>=4.58.0,<5.0.0)",
     "mistletoe (>=1.4.0,<2.0.0)",
     "svgwrite (>=1.4.3,<2.0.0)",
+    "flake8-pyproject (>=1.2.3,<2.0.0)",
 ]
 
 [build-system]
@@ -36,6 +37,7 @@ black = "^25.1.0"
 flake8 = "^7.2.0"
 isort = "^6.0.1"
 mypy = "^1.15.0"
+flake8-bugbear = "^24.12.12"
 
 [tool.black]
 # match Black’s defaults, maybe tweak line-length
@@ -65,9 +67,11 @@ known_first_party = ["battery_symbols"]
 [tool.flake8]
 # match Black & isort
 max-line-length = 88
-extend-ignore = ["E203", "W503"]
+extend-ignore = ["E203", "E501", "E701", "W503"]
+extend-select = ["B950"]
 # point Flake8 at your src/ and tests/
 exclude = ["build", ".venv", "dist", "__pycache__", "src/battery_symbols/__init__.py"]
+
 
 [tool.mypy]
 # your minimum supported Python

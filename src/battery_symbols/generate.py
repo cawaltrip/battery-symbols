@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from .models import Battery
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -22,8 +23,9 @@ def main():
             glyph = Battery(width=120, charging=charge, level=i)
             svg_doc = glyph.build_svg()
 
-            with glyph_path.open('w') as f:
+            with glyph_path.open("w") as f:
                 f.write(str(svg_doc))
+
 
 if __name__ == "__main__":
     main()
