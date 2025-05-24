@@ -1,5 +1,4 @@
 from math import sqrt
-from pathlib import Path as PPath
 
 from svg import (
     SVG, ViewBoxSpec,
@@ -7,7 +6,6 @@ from svg import (
     M, L, H, V, C, Z,
     m, l, h, v, c,
 )
-
 
 class BatteryCase:
     """
@@ -312,26 +310,3 @@ class Battery:
             elements=elements
         )
         return doc
-
-
-if __name__ == "__main__":
-    script_dir = PPath(__file__).parent
-    build_dir = script_dir.joinpath("build")
-    raw_dir = build_dir.joinpath("raw")
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    charge_dir = raw_dir.joinpath("charging")
-    charge_dir.mkdir(parents=True, exist_ok=True)
-    discharge_dir = raw_dir.joinpath("discharging")
-    discharge_dir.mkdir(parents=True, exist_ok=True)
-
-    for charge in [True, False]:
-        for i in range(101):
-            glyph_name = f"battery_{'charge' if charge else 'discharge'}_{i:0>3}.svg"
-            out_dir = charge_dir if charge else discharge_dir
-            glyph_path = out_dir.joinpath(glyph_name)
-
-            glyph = Battery(width=120, charging=charge, level=i)
-            svg_doc = glyph.build_svg()
-
-            with glyph_path.open('w') as f:
-                f.write(str(svg_doc))

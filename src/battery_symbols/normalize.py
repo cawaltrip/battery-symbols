@@ -1,7 +1,9 @@
 from subprocess import run
 from pathlib import Path
 
-if __name__ == "__main__":
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+def main():
     script_dir = Path(__file__).parent
     build_dir = script_dir.joinpath("build")
     raw_dir = build_dir.joinpath("raw")
@@ -36,9 +38,9 @@ if __name__ == "__main__":
                 actions_commands += ["delete-selection"]
             else:
                 actions_commands += [
-                "object-to-path",
-                "unselect-by-id:charge-level",
-            ]
+                    "object-to-path",
+                    "unselect-by-id:charge-level",
+                ]
 
             if f.is_relative_to(raw_charge_dir):
                 actions_commands += [
@@ -72,9 +74,9 @@ if __name__ == "__main__":
                 ]
 
             actions_commands += [
-              "export-plain-svg",
-              f"export-filename:{processed_filename.relative_to(script_dir)}",
-              "export-do;"
+                "export-plain-svg",
+                f"export-filename:{processed_filename.relative_to(script_dir)}",
+                "export-do;"
             ]
         except ValueError:
             print(f"cannot find path for: {f.name}")
@@ -92,17 +94,5 @@ if __name__ == "__main__":
         except:
             print("something failed")
 
-
-# 1) Run Inkscape in batch-mode to convert the stroke-to-path
-# run([
-#     "inkscape",
-#     "--batch-process",                       # no interactive GUI
-#     "--select=lightning-bolt-mask",          # choose your element
-#     "--actions=ObjectToPath;FileSave;FileClose",
-#     "battery.svg"
-# ], check=True)
-#
-# # 2) Now load the updated file with pyinkscape
-# canvas = Canvas("battery.svg")
-# # … proceed to wrap the now-stroketopath element in a mask or clipPath …
-# canvas.render("battery-stroked-masked.svg")
+if __name__ == "__main__":
+    main()
