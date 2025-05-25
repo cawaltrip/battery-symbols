@@ -21,6 +21,120 @@ from svg import (
 )
 
 
+def _define_bounding_box(  # noqa: C901
+    coordinates: list[PathData],
+) -> tuple[int | float, int | float, int | float, int | float]:
+    """
+    Compute the bounding box of the given coordinates.
+    :return: tuple of (min_x, min_y, max_x, max_y)
+    """
+    x = y = 0.0
+    min_x = min_y = float("inf")
+    max_x = max_y = float("-inf")
+
+    for cmd in coordinates:
+        if isinstance(cmd, M):
+            # absolute MoveTo
+            x, y = cmd.x, cmd.y  # type: ignore
+        elif isinstance(cmd, m):
+            # relative moveto
+            x += cmd.dx  # type: ignore
+            y += cmd.dy  # type: ignore
+        elif isinstance(cmd, L):
+            # absolute LineTo
+            x, y = cmd.x, cmd.y  # type: ignore
+        elif isinstance(cmd, l):
+            # relative line to
+            x += cmd.dx  # type: ignore
+            y += cmd.dy  # type: ignore
+        elif isinstance(cmd, H):
+            # absolute horizontal line
+            x = cmd.x  # type: ignore
+        elif isinstance(cmd, h):
+            # relative horizontal line
+            x += cmd.dx  # type: ignore
+        elif isinstance(cmd, V):
+            # absolute vertical line
+            y = cmd.y  # type: ignore
+        elif isinstance(cmd, v):
+            # relative vertical line
+            y += cmd.dy  # type: ignore
+        elif isinstance(cmd, C):
+            # absolute cubic Bézier; .x,.y is endpoint
+            x, y = cmd.x, cmd.y  # type: ignore
+        elif isinstance(cmd, c):
+            # relative cubic Bézier; dx,dy is endpoint offset
+            x += cmd.dx  # type: ignore
+            y += cmd.dy  # type: ignore
+        elif isinstance(cmd, Z):
+            pass
+        else:
+            print(f"Got type I can't process: {type(cmd)}")
+            continue
+
+        # update our min/max
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
+
+    return min_x, min_y, max_x, max_y
+
+
+def _scale_path(  # noqa: C901
+    coordinates: list[PathData],
+    scale: int | float,
+    x_offset: int | float,
+    y_offset: int | float,
+) -> list[PathData]:
+    cmds: list[PathData] = []
+    for cmd in coordinates:
+        if isinstance(cmd, M):
+            cmds.append(M(cmd.x * scale + x_offset, cmd.y * scale + y_offset))  # type: ignore
+        elif isinstance(cmd, m):
+            cmds.append(m(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+        elif isinstance(cmd, L):
+            cmds.append(L(cmd.x * scale + x_offset, cmd.y * scale + y_offset))  # type: ignore
+        elif isinstance(cmd, l):
+            cmds.append(l(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+        elif isinstance(cmd, H):
+            cmds.append(H(cmd.x * scale + x_offset))  # type: ignore
+        elif isinstance(cmd, h):
+            cmds.append(h(cmd.dx * scale))  # type: ignore
+        elif isinstance(cmd, V):
+            cmds.append(V(cmd.y * scale + x_offset))  # type: ignore
+        elif isinstance(cmd, v):
+            cmds.append(v(cmd.dy * scale))  # type: ignore
+        elif isinstance(cmd, C):
+            cmds.append(
+                C(
+                    cmd.x1 * scale + x_offset,  # type: ignore
+                    cmd.y1 * scale + y_offset,  # type: ignore
+                    cmd.x2 * scale + x_offset,  # type: ignore
+                    cmd.y2 * scale + y_offset,  # type: ignore
+                    cmd.x * scale + x_offset,  # type: ignore
+                    cmd.y * scale + y_offset,  # type: ignore
+                )
+            )
+        elif isinstance(cmd, c):
+            cmds.append(
+                c(
+                    cmd.dx1 * scale,  # type: ignore
+                    cmd.dy1 * scale,  # type: ignore
+                    cmd.dx2 * scale,  # type: ignore
+                    cmd.dy2 * scale,  # type: ignore
+                    cmd.dx * scale,  # type: ignore
+                    cmd.dy * scale,  # type: ignore
+                )
+            )
+        elif isinstance(cmd, Z):
+            cmds.append(Z())
+        else:  # Z()
+            print(f"Got type I can't process: {type(cmd)}")
+
+    return cmds
+
+
 class BatteryCase:
     """
     Represents the outer battery case with configurable width.
@@ -177,17 +291,24 @@ class LightningBolt:
         # otherwise we need to scale and center the lightning bolt
         if transform_scale != 1:
             # Determine the bounding box of the base coordinates
-            min_x, min_y, max_x, max_y = self._define_bounding_box()
+            min_x, min_y, max_x, max_y = _define_bounding_box(
+                coordinates=self.base_coordinates
+            )
 
             bolt_w = max_x - min_x
             bolt_h = max_y - min_y
 
             # Figure out scale + center-offset.
             scale = min(bc_width / bolt_w, bc_height / bolt_h)
-            offset_x = bc_x + (bc_width - bolt_w * scale) / 2 - min_x * scale
-            offset_y = bc_y + (bc_height - bolt_h * scale) / 2 - min_y * scale
+            x_offset = bc_x + (bc_width - bolt_w * scale) / 2 - min_x * scale
+            y_offset = bc_y + (bc_height - bolt_h * scale) / 2 - min_y * scale
 
-            self._scale_lightning_bolt(scale, offset_x, offset_y)
+            self.commands = _scale_path(
+                coordinates=self.base_coordinates,
+                scale=scale,
+                x_offset=x_offset,
+                y_offset=y_offset,
+            )
         else:
             self.commands = self.base_coordinates
 
@@ -199,111 +320,6 @@ class LightningBolt:
             stroke_width=self.stroke_width,
             id=elem_id,
         )
-
-    def _define_bounding_box(self) -> tuple[float, float, float, float]:  # noqa: C901
-        """
-        Compute the bounding box of the given coordinates.
-        :return: tuple of (min_x, min_y, max_x, max_y)
-        """
-        x = y = 0.0
-        min_x = min_y = float("inf")
-        max_x = max_y = float("-inf")
-
-        for cmd in self.base_coordinates:
-            if isinstance(cmd, M):
-                # absolute MoveTo
-                x, y = cmd.x, cmd.y  # type: ignore
-            elif isinstance(cmd, m):
-                # relative moveto
-                x += cmd.dx  # type: ignore
-                y += cmd.dy  # type: ignore
-            elif isinstance(cmd, L):
-                # absolute LineTo
-                x, y = cmd.x, cmd.y  # type: ignore
-            elif isinstance(cmd, l):
-                # relative line to
-                x += cmd.dx  # type: ignore
-                y += cmd.dy  # type: ignore
-            elif isinstance(cmd, H):
-                # absolute horizontal line
-                x = cmd.x  # type: ignore
-            elif isinstance(cmd, h):
-                # relative horizontal line
-                x += cmd.dx  # type: ignore
-            elif isinstance(cmd, V):
-                # absolute vertical line
-                y = cmd.y  # type: ignore
-            elif isinstance(cmd, v):
-                # relative vertical line
-                y += cmd.dy  # type: ignore
-            elif isinstance(cmd, C):
-                # absolute cubic Bézier; .x,.y is endpoint
-                x, y = cmd.x, cmd.y  # type: ignore
-            elif isinstance(cmd, c):
-                # relative cubic Bézier; dx,dy is endpoint offset
-                x += cmd.dx  # type: ignore
-                y += cmd.dy  # type: ignore
-            # Z() resets back to start of subpath but doesn't move the pen
-            # so, we just ignore it for bbox purposes
-
-            # update our min/max
-            min_x = min(min_x, x)
-            max_x = max(max_x, x)
-            min_y = min(min_y, y)
-            max_y = max(max_y, y)
-
-        return min_x, min_y, max_x, max_y
-
-    def _scale_lightning_bolt(  # noqa: C901
-        self, scale: float, offset_x: float, offset_y: float
-    ) -> None:
-        cmds: list[PathData] = []
-        for cmd in self.base_coordinates:
-            if isinstance(cmd, M):
-                cmds.append(M(cmd.x * scale + offset_x, cmd.y * scale + offset_y))  # type: ignore
-            elif isinstance(cmd, m):
-                cmds.append(m(cmd.dx * scale, cmd.dy * scale))  # type: ignore
-            elif isinstance(cmd, L):
-                cmds.append(L(cmd.x * scale + offset_x, cmd.y * scale + offset_y))  # type: ignore
-            elif isinstance(cmd, l):
-                cmds.append(l(cmd.dx * scale, cmd.dy * scale))  # type: ignore
-            elif isinstance(cmd, H):
-                cmds.append(H(cmd.x * scale + offset_x))  # type: ignore
-            elif isinstance(cmd, h):
-                cmds.append(h(cmd.dx * scale))  # type: ignore
-            elif isinstance(cmd, V):
-                cmds.append(V(cmd.y * scale + offset_x))  # type: ignore
-            elif isinstance(cmd, v):
-                cmds.append(v(cmd.dy * scale))  # type: ignore
-            elif isinstance(cmd, C):
-                cmds.append(
-                    C(
-                        cmd.x1 * scale + offset_x,  # type: ignore
-                        cmd.y1 * scale + offset_y,  # type: ignore
-                        cmd.x2 * scale + offset_x,  # type: ignore
-                        cmd.y2 * scale + offset_y,  # type: ignore
-                        cmd.x * scale + offset_x,  # type: ignore
-                        cmd.y * scale + offset_y,  # type: ignore
-                    )
-                )
-            elif isinstance(cmd, c):
-                cmds.append(
-                    c(
-                        cmd.dx1 * scale,  # type: ignore
-                        cmd.dy1 * scale,  # type: ignore
-                        cmd.dx2 * scale,  # type: ignore
-                        cmd.dy2 * scale,  # type: ignore
-                        cmd.dx * scale,  # type: ignore
-                        cmd.dy * scale,  # type: ignore
-                    )
-                )
-            elif isinstance(cmd, Z):
-                cmds.append(Z())
-            else:  # Z()
-                print(f"Got type I can't process: {type(cmd)}")
-
-        # store for draw()
-        self.commands = cmds
 
 
 class Battery:

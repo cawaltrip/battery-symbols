@@ -27,7 +27,7 @@ repos:
           --no-warn-unused-ignores,
           --warn-unused-configs,
           --strict,
-          --verbose,
+          # --verbose,
         ]
 
   - repo: https://github.com/commitizen-tools/commitizen
