@@ -118,9 +118,12 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.mypy]
-# your minimum supported Python
-python_version = 3.9
-# relax missing-stub errors
+# These options are ignored by the pre-commit hook.
+# They need to be configured in the .pre-commit-config.yaml file.
+python_version = 3.13
 ignore_missing_imports = true
-# if you want “strict” mode you can enable more here:
-# strict = true
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+warn_unused_ignores = true
+warn_unused_configs = true
+strict = true

@@ -20,6 +20,15 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
+        args: [
+          --ignore-missing-imports,
+          --disallow-untyped-calls,
+          --disallow-untyped-defs,
+          --no-warn-unused-ignores,
+          --warn-unused-configs,
+          --strict,
+          --verbose,
+        ]
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.7.2

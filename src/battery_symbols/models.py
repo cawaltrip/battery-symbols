@@ -17,6 +17,7 @@ from svg import (
     l,
     m,
     v,
+    PathData,
 )
 
 
@@ -27,7 +28,7 @@ class BatteryCase:
     corner radius is width/8 by default.
     """
 
-    def __init__(self, width):
+    def __init__(self, width: int | float):
         self.width = width
         self.stroke_width = width / 20
         self.height = width / 2
@@ -38,7 +39,7 @@ class BatteryCase:
         self.fill = "none"
         self.stroke = "black"
 
-    def draw(self, elem_id="battery-case"):
+    def draw(self, elem_id: str = "battery-case") -> Rect:
         return Rect(
             x=self.x,
             y=self.y,
@@ -73,7 +74,7 @@ class Anode:
         self.y2 = self.cy + delta_y
         self.fill = battery_case.stroke
 
-    def draw(self, elem_id="anode"):
+    def draw(self, elem_id: str = "anode") -> Path:
         return Path(
             d=[
                 M(self.x_chord, self.y1),
@@ -114,13 +115,9 @@ class BatteryChargeLevel:
         self.ry = self.rx
         self.charge_level = charge_level
         self.charging = charging
-        # self.fill_color = "yellow" if self.charging else "gray"
         self.fill_color = "black"
-        self.id = "charge-level"
-        # self.id = "charge" if self.charging else "drain"
-        # self.id = f"{self.id}{self.charge_level}"
 
-    def draw(self, elem_id="charge_level"):
+    def draw(self, elem_id: str = "charge_level") -> Rect:
         return Rect(
             x=self.x,
             y=self.y,
@@ -130,7 +127,7 @@ class BatteryChargeLevel:
             ry=self.ry,
             fill=self.fill_color,
             stroke="none",
-            id=self.id,
+            id=elem_id,
         )
 
 
@@ -140,149 +137,61 @@ class LightningBolt:
     based on the size of the BatteryCase.
     """
 
-    def __init__(self, battery_case, base_width, stroke_width=0, color="black"):
+    base_coordinates = [
+        M(57.12, 60.58),
+        l(23.51, -29.46),
+        c(0.44, -0.59, 0.68, -1.16, 0.68, -1.71),
+        c(0, -1.06, -0.86, -1.86, -1.96, -1.86),
+        h(-14.48),
+        l(7.72, -20.77),
+        c(0.65, -1.84, -0.42, -3.13, -1.72, -3.13),
+        c(-0.65, 0, -1.35, 0.32, -1.93, 1.05),
+        l(-23.51, 29.47),
+        c(-0.44, 0.59, -0.73, 1.15, -0.73, 1.70),
+        c(0, 1.06, 0.90, 1.86, 1.97, 1.86),
+        h(14.51),
+        l(-7.72, 20.81),
+        c(-0.68, 1.83, 0.39, 3.10, 1.70, 3.10),
+        c(0.66, 0, 1.38, -0.32, 1.96, -1.06),
+        Z(),
+    ]
+
+    def __init__(
+        self,
+        battery_case: BatteryCase,
+        base_width: int | float,
+        stroke_width: int | float = 0,
+        color: str = "black",
+    ):
         self.stroke_width = stroke_width
         self.fill_color = color
-        # 1) grab case dims
+
+        # Grab dimensions from the battery case
         bc_width, bc_height = battery_case.width, battery_case.height
         bc_x, bc_y = battery_case.x, battery_case.y
 
+        # Determine if there's a scale factor
         transform_scale = bc_width / base_width
 
-        # 2) define raw bolt as svg.py command-objects (absolute coords)
-        raw = [
-            M(57.12, 60.58),
-            l(23.51, -29.46),
-            c(0.44, -0.59, 0.68, -1.16, 0.68, -1.71),
-            c(0, -1.06, -0.86, -1.86, -1.96, -1.86),
-            h(-14.48),
-            l(7.72, -20.77),
-            c(0.65, -1.84, -0.42, -3.13, -1.72, -3.13),
-            c(-0.65, 0, -1.35, 0.32, -1.93, 1.05),
-            l(-23.51, 29.47),
-            c(-0.44, 0.59, -0.73, 1.15, -0.73, 1.70),
-            c(0, 1.06, 0.90, 1.86, 1.97, 1.86),
-            h(14.51),
-            l(-7.72, 20.81),
-            c(-0.68, 1.83, 0.39, 3.10, 1.70, 3.10),
-            c(0.66, 0, 1.38, -0.32, 1.96, -1.06),
-            Z(),
-        ]
-
+        # If the scale is 1, we can just use the base coordinates,
+        # otherwise we need to scale and center the lightning bolt
         if transform_scale != 1:
-
-            # 3) compute original bounding box
-            x = y = 0.0
-            min_x = min_y = float("inf")
-            max_x = max_y = float("-inf")
-
-            for cmd in raw:
-                if isinstance(cmd, M):
-                    # absolute MoveTo
-                    x, y = cmd.x, cmd.y
-                elif isinstance(cmd, m):
-                    # relative moveto
-                    x += cmd.dx
-                    y += cmd.dy
-                elif isinstance(cmd, L):
-                    # absolute LineTo
-                    x, y = cmd.x, cmd.y
-                elif isinstance(cmd, l):
-                    # relative line to
-                    x += cmd.dx
-                    y += cmd.dy
-                elif isinstance(cmd, H):
-                    # absolute horizontal line
-                    x = cmd.x
-                elif isinstance(cmd, h):
-                    # relative horizontal line
-                    x += cmd.dx
-                elif isinstance(cmd, V):
-                    # absolute vertical line
-                    y = cmd.y
-                elif isinstance(cmd, v):
-                    # relative vertical line
-                    y += cmd.dy
-                elif isinstance(cmd, C):
-                    # absolute cubic Bézier; .x,.y is endpoint
-                    x, y = cmd.x, cmd.y
-                elif isinstance(cmd, c):
-                    # relative cubic Bézier; dx,dy is endpoint offset
-                    x += cmd.dx
-                    y += cmd.dy
-                # Z() resets back to start of subpath but doesn't move the pen
-                # so, we just ignore it for bbox purposes
-
-                # update our min/max
-                min_x = min(min_x, x)
-                max_x = max(max_x, x)
-                min_y = min(min_y, y)
-                max_y = max(max_y, y)
+            # Determine the bounding box of the base coordinates
+            min_x, min_y, max_x, max_y = self._define_bounding_box()
 
             bolt_w = max_x - min_x
             bolt_h = max_y - min_y
 
-            # 4) figure out scale + center-offset
+            # Figure out scale + center-offset.
             scale = min(bc_width / bolt_w, bc_height / bolt_h)
             offset_x = bc_x + (bc_width - bolt_w * scale) / 2 - min_x * scale
             offset_y = bc_y + (bc_height - bolt_h * scale) / 2 - min_y * scale
 
-            # 5) rebuild scaled commands
-            cmds = []
-            for cmd in raw:
-                if isinstance(cmd, M):
-                    cmds.append(M(cmd.x * scale + offset_x, cmd.y * scale + offset_y))
-                elif isinstance(cmd, m):
-                    cmds.append(m(cmd.dx * scale, cmd.dy * scale))
-                elif isinstance(cmd, L):
-                    print("got L")
-                    cmds.append(L(cmd.x * scale + offset_x, cmd.y * scale + offset_y))
-                elif isinstance(cmd, l):
-                    cmds.append(l(cmd.dx * scale, cmd.dy * scale))
-                elif isinstance(cmd, H):
-                    print("got H")
-                    cmds.append(H(cmd.x * scale + offset_x))
-                elif isinstance(cmd, h):
-                    cmds.append(h(cmd.dx * scale))
-                elif isinstance(cmd, V):
-                    print("got H")
-                    cmds.append(V(cmd.y * scale + offset_x))
-                elif isinstance(cmd, v):
-                    cmds.append(v(cmd.dy * scale))
-                elif isinstance(cmd, C):
-                    print("got C")
-                    cmds.append(
-                        C(
-                            cmd.x1 * scale + offset_x,
-                            cmd.y1 * scale + offset_y,
-                            cmd.x2 * scale + offset_x,
-                            cmd.y2 * scale + offset_y,
-                            cmd.x * scale + offset_x,
-                            cmd.y * scale + offset_y,
-                        )
-                    )
-                elif isinstance(cmd, c):
-                    cmds.append(
-                        c(
-                            cmd.dx1 * scale,
-                            cmd.dy1 * scale,
-                            cmd.dx2 * scale,
-                            cmd.dy2 * scale,
-                            cmd.dx * scale,
-                            cmd.dy * scale,
-                        )
-                    )
-                elif isinstance(cmd, Z):
-                    cmds.append(Z())
-                else:  # Z()
-                    print(f"Got type I can't process: {type(cmd)}")
-
-            # store for draw()
-            self.commands = cmds
+            self._scale_lightning_bolt(scale, offset_x, offset_y)
         else:
-            self.commands = raw
+            self.commands = self.base_coordinates
 
-    def draw(self, elem_id="lightning-bolt"):
+    def draw(self, elem_id: str = "lightning-bolt") -> Path:
         return Path(
             d=self.commands,
             fill=self.fill_color,
@@ -290,6 +199,111 @@ class LightningBolt:
             stroke_width=self.stroke_width,
             id=elem_id,
         )
+
+    def _define_bounding_box(self) -> tuple[float, float, float, float]:  # noqa: C901
+        """
+        Compute the bounding box of the given coordinates.
+        :return: tuple of (min_x, min_y, max_x, max_y)
+        """
+        x = y = 0.0
+        min_x = min_y = float("inf")
+        max_x = max_y = float("-inf")
+
+        for cmd in self.base_coordinates:
+            if isinstance(cmd, M):
+                # absolute MoveTo
+                x, y = cmd.x, cmd.y  # type: ignore
+            elif isinstance(cmd, m):
+                # relative moveto
+                x += cmd.dx  # type: ignore
+                y += cmd.dy  # type: ignore
+            elif isinstance(cmd, L):
+                # absolute LineTo
+                x, y = cmd.x, cmd.y  # type: ignore
+            elif isinstance(cmd, l):
+                # relative line to
+                x += cmd.dx  # type: ignore
+                y += cmd.dy  # type: ignore
+            elif isinstance(cmd, H):
+                # absolute horizontal line
+                x = cmd.x  # type: ignore
+            elif isinstance(cmd, h):
+                # relative horizontal line
+                x += cmd.dx  # type: ignore
+            elif isinstance(cmd, V):
+                # absolute vertical line
+                y = cmd.y  # type: ignore
+            elif isinstance(cmd, v):
+                # relative vertical line
+                y += cmd.dy  # type: ignore
+            elif isinstance(cmd, C):
+                # absolute cubic Bézier; .x,.y is endpoint
+                x, y = cmd.x, cmd.y  # type: ignore
+            elif isinstance(cmd, c):
+                # relative cubic Bézier; dx,dy is endpoint offset
+                x += cmd.dx  # type: ignore
+                y += cmd.dy  # type: ignore
+            # Z() resets back to start of subpath but doesn't move the pen
+            # so, we just ignore it for bbox purposes
+
+            # update our min/max
+            min_x = min(min_x, x)
+            max_x = max(max_x, x)
+            min_y = min(min_y, y)
+            max_y = max(max_y, y)
+
+        return min_x, min_y, max_x, max_y
+
+    def _scale_lightning_bolt(  # noqa: C901
+        self, scale: float, offset_x: float, offset_y: float
+    ) -> None:
+        cmds: list[PathData] = []
+        for cmd in self.base_coordinates:
+            if isinstance(cmd, M):
+                cmds.append(M(cmd.x * scale + offset_x, cmd.y * scale + offset_y))  # type: ignore
+            elif isinstance(cmd, m):
+                cmds.append(m(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+            elif isinstance(cmd, L):
+                cmds.append(L(cmd.x * scale + offset_x, cmd.y * scale + offset_y))  # type: ignore
+            elif isinstance(cmd, l):
+                cmds.append(l(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+            elif isinstance(cmd, H):
+                cmds.append(H(cmd.x * scale + offset_x))  # type: ignore
+            elif isinstance(cmd, h):
+                cmds.append(h(cmd.dx * scale))  # type: ignore
+            elif isinstance(cmd, V):
+                cmds.append(V(cmd.y * scale + offset_x))  # type: ignore
+            elif isinstance(cmd, v):
+                cmds.append(v(cmd.dy * scale))  # type: ignore
+            elif isinstance(cmd, C):
+                cmds.append(
+                    C(
+                        cmd.x1 * scale + offset_x,  # type: ignore
+                        cmd.y1 * scale + offset_y,  # type: ignore
+                        cmd.x2 * scale + offset_x,  # type: ignore
+                        cmd.y2 * scale + offset_y,  # type: ignore
+                        cmd.x * scale + offset_x,  # type: ignore
+                        cmd.y * scale + offset_y,  # type: ignore
+                    )
+                )
+            elif isinstance(cmd, c):
+                cmds.append(
+                    c(
+                        cmd.dx1 * scale,  # type: ignore
+                        cmd.dy1 * scale,  # type: ignore
+                        cmd.dx2 * scale,  # type: ignore
+                        cmd.dy2 * scale,  # type: ignore
+                        cmd.dx * scale,  # type: ignore
+                        cmd.dy * scale,  # type: ignore
+                    )
+                )
+            elif isinstance(cmd, Z):
+                cmds.append(Z())
+            else:  # Z()
+                print(f"Got type I can't process: {type(cmd)}")
+
+        # store for draw()
+        self.commands = cmds
 
 
 class Battery:
@@ -299,8 +313,14 @@ class Battery:
     and level.
     """
 
-    def __init__(self, width, charging=False, level=100):
-        self.base_battery_case_width = 120
+    base_battery_case_width = 120
+
+    def __init__(
+        self,
+        width: int | float = base_battery_case_width,
+        charging: bool = False,
+        level: int = 100,
+    ):
         self.case = BatteryCase(width)
         self.anode = Anode(self.case)
         self.charging = charging
@@ -312,7 +332,7 @@ class Battery:
             self.case, self.base_battery_case_width, 12
         )
 
-    def build_svg(self):
+    def build_svg(self) -> SVG:
         bc = self.case
         # Canvas dimensions
         svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
@@ -332,6 +352,6 @@ class Battery:
             viewBox=view_box,
             id="battery",
             xmlns="http://www.w3.org/2000/svg",
-            elements=elements,
+            elements=elements,  # type: ignore
         )
         return doc
