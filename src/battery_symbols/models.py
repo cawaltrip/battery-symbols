@@ -134,23 +134,6 @@ def _scale_path(  # noqa: C901
     return cmds
 
 
-def _mask_path(subject_path: skia.Path, clip_path: skia.Path) -> skia.Path:
-    """
-    Create a mask by combining two paths.
-    The top path will be subtracted from the bottom path.
-    """
-    return skia.Op(subject_path, clip_path, skia.PathOp.kDifference_PathOp)
-
-
-def _to_path(shape: skia.RRect, paint: skia.Paint) -> skia.Path:
-    """
-    Convert a skia.RRect object to a skia.Path object.
-    """
-    path = skia.Path()
-    path.addRRect(object)
-    return path
-
-
 def _path_and_mask(
     subject_path: skia.RRect,
     subject_paint: skia.Paint,
