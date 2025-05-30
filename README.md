@@ -9,4 +9,4 @@ I should note that I'm not a font expert, and there's some work that this font n
 * Figure out the best way to scale and make glyphs properly fit.
 * ~~Clean up the 0% glyphs; the glyphs themselves don't have a "charge level", but the final glyph has an artifact there.  Not sure what's causing it yet.~~ This may just be an artifact in macOS Font Book.
 * Figure out how to make the charging icon mask work properly.  It looks like it's not masking the charge level properly.
-* Reverse the lightning bolt direction.
+* Reverse the lightning bolt direction.  Something I'm doing with FontBuilder is causing it I think?  When I extract the glyphs afterwards for the examples, they're facing the correct way!  And it's only the lightning bolt.  Likely need to do a transform around the y-axis to fix it.
