@@ -1,9 +1,10 @@
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as Et
 from pathlib import Path
 from re import compile
 
 from fontTools.fontBuilder import FontBuilder
-from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.basePen import BasePen
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -15,7 +16,12 @@ from mistletoe.markdown_renderer import MarkdownRenderer
 from mistletoe.span_token import RawText
 from svgwrite import Drawing
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from battery_symbols.config import (
+    PROJECT_ROOT,
+    EXAMPLES_DIR,
+    RAW_CHARGE_DIR,
+    RAW_DISCHARGE_DIR,
+)
 
 EM_SIZE = 1000  # units per em
 # ADV_WIDTH = 600  # default advance‐width
@@ -24,35 +30,48 @@ LSB = 50  # default left‐side bearing
 BASE_CODEPOINT = 0xF2000  # starting codepoint
 
 
-def get_viewbox(svg_file):
-    root = ET.parse(svg_file).getroot()
+def get_viewbox(
+    svg_file: Path,
+) -> tuple[int | float, int | float, int | float, int | float]:
+    root = Et.parse(svg_file).getroot()
     vb = root.attrib.get("viewBox", None)
     if vb:
         x0, y0, w, h = map(float, vb.split())
+        return x0, y0, w, h
+    pen = BoundsPen(None)
+    SVGPath(str(svg_file)).draw(pen)
+    if pen.bounds:
+        x0, y0, x1, y1 = pen.bounds
+        w = x1 - x0
+        h = y1 - y0
         return x0, y0, w, h
     # fallback: hardcode or measure via a pen
     return 0, 0, 142, 66
 
 
-def draw_scaled(svg_file: Path, pen, margin=0.9):
+def draw_scaled(
+    svg_file: Path, pen: BasePen | TTGlyphPen, margin: float = 0.9
+) -> int | float:
     x0, y0, w, h = get_viewbox(svg_file)
     scale = EM_SIZE * margin / max(w, h)
     glyph_width = w * scale
-    extra_space = EM_SIZE - glyph_width
+    extra_space: int | float = EM_SIZE - glyph_width
     tx = -x0 * scale + extra_space / 2
-    ty = -y0 * scale
-    t_pen = TransformPen(pen, (scale, 0, 0, scale, tx, ty))
+    ty = (h + y0) * scale
+    t_pen = TransformPen(pen, (scale, 0, 0, -scale, tx, ty))
     SVGPath(str(svg_file)).draw(t_pen)
     return extra_space
 
 
-def gather_svgs(discharge_glyphs_dir: Path, charge_glyphs_dir: Path):
+def gather_svgs(discharge_glyphs_dir: Path, charge_glyphs_dir: Path) -> list[Path]:
     discharge_glyphs = sorted(discharge_glyphs_dir.glob("**/*.svg"))
     charge_glyphs = sorted(charge_glyphs_dir.glob("**/*.svg"))
     return discharge_glyphs + charge_glyphs
 
 
-def build_font(svg_paths, starting_codepoint, output_file):
+def build_font(
+    svg_paths: list[Path], starting_codepoint: int, output_file: Path
+) -> None:
     """Create and save the TTF with each SVG mapped to a codepoint."""
     # glyph names from filenames
     names = [p.stem for p in svg_paths]
@@ -73,13 +92,14 @@ def build_font(svg_paths, starting_codepoint, output_file):
     glyf[".notdef"] = TTGlyphPen(None).glyph()
     hmtx[".notdef"] = (ADV_WIDTH, LSB)
 
-    for cp, name, svg in zip(codepoints, names, svg_paths):
+    for cp, name, svg in zip(codepoints, names, svg_paths, strict=False):
         tt_pen = TTGlyphPen(None)
-        quad_pen = Cu2QuPen(tt_pen, max_err=1.0, all_quadratic=True)
-        extra_space = draw_scaled(svg, quad_pen)
+        # quad_pen = Cu2QuPen(tt_pen, max_err=1.0, all_quadratic=True)
+        # extra_space = draw_scaled(svg, quad_pen)
+        extra_space = draw_scaled(svg, tt_pen)
         # SVGPath(str(svg)).draw(quad_pen)
         glyf[name] = tt_pen.glyph()
-        hmtx[name] = (ADV_WIDTH, (extra_space / 2))
+        hmtx[name] = (ADV_WIDTH, int(extra_space / 2))
         # hmtx[name] = (ADV_WIDTH, 0)
         cmap[cp] = name
 
@@ -116,7 +136,7 @@ def build_font(svg_paths, starting_codepoint, output_file):
     print(f"Wrote {output_file}.")
 
 
-def extract_and_save_sample_glyphs(font_path: Path, output_path: Path):
+def extract_and_save_sample_glyphs(font_path: Path, output_path: Path) -> None:
     """
     Extract sample glyphs from the font we've created.  Probably good to have
     the charged and discharged glyphs for charge_level % 10 == 0.  We know
@@ -151,7 +171,7 @@ def extract_and_save_sample_glyphs(font_path: Path, output_path: Path):
         drawing.save()
 
 
-def write_cheatsheet(svg_path: Path, root_dir: Path, readme_path: Path):
+def write_cheatsheet(svg_path: Path, root_dir: Path) -> str:
     filelist = svg_path.glob("**/*.svg")
     pattern = compile(r"battery_(charge|discharge)_(\d{3})\.svg$")
     files: dict[int, dict[str, Path]] = {}
@@ -196,7 +216,7 @@ def write_cheatsheet(svg_path: Path, root_dir: Path, readme_path: Path):
     return "\n".join(lines)
 
 
-def _get_section_heading(token):
+def _get_section_heading(token: Heading) -> str:
     """Flatten a Heading node’s RawText children into a single string."""
     return "".join(
         child.content for child in token.children if isinstance(child, RawText)
@@ -205,7 +225,7 @@ def _get_section_heading(token):
 
 def replace_cheatsheet(
     readme_path: Path, new_content: str, cheatsheet_heading: str = "Examples"
-):
+) -> None:
     try:
         with open(readme_path) as f:
             doc = Document(f)
@@ -253,22 +273,17 @@ def replace_cheatsheet(
             f.write(renderer.render(doc))
 
 
-def main():
-    build_dir = PROJECT_ROOT / "build"
-    processed_dir = build_dir / "processed"
-    charge_dir = processed_dir / "charging"
-    discharge_dir = processed_dir / "discharging"
-    examples_dir = PROJECT_ROOT / "examples"
+def main() -> None:
     output_font_file = PROJECT_ROOT / "BatterySymbols-Regular.ttf"
     readme_file = PROJECT_ROOT / "README.md"
 
-    examples_dir.mkdir(parents=True, exist_ok=True)
+    EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    svgs = gather_svgs(discharge_dir, charge_dir)
+    svgs = gather_svgs(RAW_DISCHARGE_DIR, RAW_CHARGE_DIR)
 
     build_font(svgs, BASE_CODEPOINT, output_font_file)
-    extract_and_save_sample_glyphs(output_font_file, examples_dir)
-    cheatsheet_content = write_cheatsheet(examples_dir, PROJECT_ROOT, readme_file)
+    extract_and_save_sample_glyphs(output_font_file, EXAMPLES_DIR)
+    cheatsheet_content = write_cheatsheet(EXAMPLES_DIR, PROJECT_ROOT)
     replace_cheatsheet(readme_file, cheatsheet_content)
 
 
