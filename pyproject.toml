@@ -7,12 +7,13 @@ authors = [
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.9,<4.0"
+requires-python = ">=3.9,<3.13"  # skia-python doesn't install on Python 3.13 yet.
 dependencies = [
     "svg-py (>=1.6.0,<2.0.0)",
     "fonttools (>=4.58.0,<5.0.0)",
     "mistletoe (>=1.4.0,<2.0.0)",
     "svgwrite (>=1.4.3,<2.0.0)",
+    "skia-python (>=87.8,<88.0)",
 ]
 
 [build-system]
@@ -26,8 +27,8 @@ packages = [
 
 [tool.poetry.scripts]
 generate-icons   = "battery_symbols.generate:main"
-normalize-icons  = "battery_symbols.normalize:main"
 create-font      = "battery_symbols.create:main"
+export-glyphs    = "battery_symbols.export:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.7.2"
@@ -120,7 +121,7 @@ docstring-code-line-length = "dynamic"
 [tool.mypy]
 # These options are ignored by the pre-commit hook.
 # They need to be configured in the .pre-commit-config.yaml file.
-python_version = 3.13
+python_version = 3.12
 ignore_missing_imports = true
 disallow_untyped_calls = false
 disallow_untyped_defs = false

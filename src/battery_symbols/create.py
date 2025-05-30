@@ -1,10 +1,10 @@
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as Et
 from pathlib import Path
 from re import compile
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.basePen import BasePen
-from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -16,11 +16,11 @@ from mistletoe.markdown_renderer import MarkdownRenderer
 from mistletoe.span_token import RawText
 from svgwrite import Drawing
 
-from .config import (
+from battery_symbols.config import (
     PROJECT_ROOT,
     EXAMPLES_DIR,
-    PROCESSED_CHARGE_DIR,
-    PROCESSED_DISCHARGE_DIR,
+    RAW_CHARGE_DIR,
+    RAW_DISCHARGE_DIR,
 )
 
 EM_SIZE = 1000  # units per em
@@ -33,23 +33,32 @@ BASE_CODEPOINT = 0xF2000  # starting codepoint
 def get_viewbox(
     svg_file: Path,
 ) -> tuple[int | float, int | float, int | float, int | float]:
-    root = ET.parse(svg_file).getroot()
+    root = Et.parse(svg_file).getroot()
     vb = root.attrib.get("viewBox", None)
     if vb:
         x0, y0, w, h = map(float, vb.split())
+        return x0, y0, w, h
+    pen = BoundsPen(None)
+    SVGPath(str(svg_file)).draw(pen)
+    if pen.bounds:
+        x0, y0, x1, y1 = pen.bounds
+        w = x1 - x0
+        h = y1 - y0
         return x0, y0, w, h
     # fallback: hardcode or measure via a pen
     return 0, 0, 142, 66
 
 
-def draw_scaled(svg_file: Path, pen: BasePen, margin: float = 0.9) -> int | float:
+def draw_scaled(
+    svg_file: Path, pen: BasePen | TTGlyphPen, margin: float = 0.9
+) -> int | float:
     x0, y0, w, h = get_viewbox(svg_file)
     scale = EM_SIZE * margin / max(w, h)
     glyph_width = w * scale
     extra_space: int | float = EM_SIZE - glyph_width
     tx = -x0 * scale + extra_space / 2
-    ty = -y0 * scale
-    t_pen = TransformPen(pen, (scale, 0, 0, scale, tx, ty))
+    ty = (h + y0) * scale
+    t_pen = TransformPen(pen, (scale, 0, 0, -scale, tx, ty))
     SVGPath(str(svg_file)).draw(t_pen)
     return extra_space
 
@@ -85,8 +94,9 @@ def build_font(
 
     for cp, name, svg in zip(codepoints, names, svg_paths, strict=False):
         tt_pen = TTGlyphPen(None)
-        quad_pen = Cu2QuPen(tt_pen, max_err=1.0, all_quadratic=True)
-        extra_space = draw_scaled(svg, quad_pen)
+        # quad_pen = Cu2QuPen(tt_pen, max_err=1.0, all_quadratic=True)
+        # extra_space = draw_scaled(svg, quad_pen)
+        extra_space = draw_scaled(svg, tt_pen)
         # SVGPath(str(svg)).draw(quad_pen)
         glyf[name] = tt_pen.glyph()
         hmtx[name] = (ADV_WIDTH, int(extra_space / 2))
@@ -269,7 +279,7 @@ def main() -> None:
 
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    svgs = gather_svgs(PROCESSED_DISCHARGE_DIR, PROCESSED_CHARGE_DIR)
+    svgs = gather_svgs(RAW_DISCHARGE_DIR, RAW_CHARGE_DIR)
 
     build_font(svgs, BASE_CODEPOINT, output_font_file)
     extract_and_save_sample_glyphs(output_font_file, EXAMPLES_DIR)
