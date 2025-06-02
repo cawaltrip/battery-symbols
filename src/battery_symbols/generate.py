@@ -1,4 +1,4 @@
-from battery_symbols.models import Battery
+from battery_symbols.models import SimpleBattery
 from battery_symbols.config import (
     RAW_DIR,
     RAW_CHARGE_DIR,
@@ -17,7 +17,7 @@ def main() -> None:
             out_dir = RAW_CHARGE_DIR if charge else RAW_DISCHARGE_DIR
             glyph_path = out_dir.joinpath(glyph_name)
 
-            glyph = Battery(width=120, charging=charge, level=i)
+            glyph = SimpleBattery(width=120, charging=charge, level=i)
             glyph.build_svg(glyph_path)
 
 

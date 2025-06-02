@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from math import sqrt
 from svg import (
     C,
@@ -394,65 +395,108 @@ class LightningBolt:
             self.shape = outline
 
 
-class Battery:
+class Number:
+    """
+    Represents a number in the battery SVG.
+    This is a placeholder for future use, as the current implementation does not
+    include text rendering.
+    """
+
+    def __init__(self, value: int, x: float, y: float):
+        self.value = value
+        self.x = x
+        self.y = y
+        # Placeholder for text rendering logic
+        self.shape = (
+            skia.Path()
+        )  # This would be replaced with actual text rendering logic
+
+
+class Battery(ABC):
+    """
+    Base class for battery symbols.
+    This class is not intended to be instantiated directly.
+    It serves as a base for other battery classes.
+    """
+
+    BASE_CASE_WIDTH = 120
+
+    def __init__(self, width: float, charging: bool, level: int):
+        self.width = width
+        self.charging = charging
+        # Clamp level between 0 and 100
+        self.level = max(0, min(100, level))
+        self.elements: list[tuple[skia.Path, skia.Paint]] = []
+        self.svg_width = 0.0
+        self.svg_height = 0.0
+        self._assemble()
+
+    @abstractmethod
+    def _assemble(self) -> None:
+        """
+        Assemble the battery components.
+        This method should be overridden by subclasses to define the specific battery components.
+        """
+        raise NotImplementedError("Subclasses must implement _assemble method.")
+
+    def build_svg(self, output_file: Path) -> None:
+        stream = skia.FILEWStream(str(output_file))
+        canvas = skia.SVGCanvas.Make(
+            bounds=(self.svg_width, self.svg_height), stream=stream
+        )  # type: ignore[call-arg]
+        for shape, paint in self.elements:
+            # Draw each shape with its corresponding paint
+            if isinstance(shape, skia.Path):
+                canvas.drawPath(shape, paint)
+            elif isinstance(shape, skia.RRect):
+                canvas.drawRRect(shape, paint)
+            elif isinstance(shape, skia.Rect):
+                canvas.drawRect(shape, paint)
+        del canvas
+        stream.flush()
+
+
+class SimpleBattery(Battery):
     """
     Combines BatteryCase, Anode, BatteryChargeLevel, and LightningBolt
     and renders the complete battery SVG, with configurable charge state
     and level.
     """
 
-    base_battery_case_width = 120
-
-    def __init__(  # noqa: C901
+    def __init__(
         self,
-        width: float = base_battery_case_width,
+        width: float = Battery.BASE_CASE_WIDTH,
         charging: bool = False,
         level: int = 100,
     ):
-        self.case = BatteryCase(width)
+        super().__init__(width, charging, level)
+
+    def _assemble(self) -> None:
+        """
+        Assemble the battery components.
+        This method defines the specific battery components for the SimpleBattery.
+        """
+        self.case = BatteryCase(self.width)
         self.anode = Anode(self.case)
-        self.charging = charging
-        # clamp level between 0 and 100
-        self.level = max(0, min(100, level))
         self.charge_level = BatteryChargeLevel(self.case, self.charging, self.level)
-        self.lightning_bolt = LightningBolt(self.case, self.base_battery_case_width)
-        self.lightning_bolt_mask = LightningBolt(
-            self.case, self.base_battery_case_width, 12, elem_id="lightning-bolt-mask"
-        )
+        self.lightning_bolt = LightningBolt(self.case, self.BASE_CASE_WIDTH)
+        self.lightning_bolt_mask = LightningBolt(self.case, self.width, 12)
 
         mask = self.lightning_bolt_mask.shape if self.charging else None
         self.case.path_and_mask(mask)
         self.charge_level.path_and_mask(mask)
 
-        # Keeping this in case it's needed later, but I don't think it's strictly necessary for what we're doing here.
-        self.elements: list[
-            BatteryCase | Anode | BatteryChargeLevel | LightningBolt
-        ] = [self.case, self.anode, self.charge_level]
-        if self.charging:
-            self.elements.append(self.lightning_bolt)
-            self.elements.append(self.lightning_bolt_mask)
+        # Add elements to the list
+        self.elements = [
+            (self.case.shape, self.case.paint),
+            (self.anode.shape, self.anode.paint),
+        ]
 
-    def build_svg(self, output_file: Path) -> None:
-        # Canvas dimensions
-        svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
-        svg_height = self.case.height + self.case.stroke_width
-
-        stream = skia.FILEWStream(str(output_file))
-        canvas = skia.SVGCanvas.Make(bounds=(svg_width, svg_height), stream=stream)  # type: ignore[call-arg]
-
-        # Battery case
-        canvas.drawPath(self.case.shape, self.case.paint)
-
-        # Anode
-        canvas.drawPath(self.anode.shape, self.anode.paint)
-
-        # Charge level
         if self.level > 0:
-            canvas.drawPath(self.charge_level.shape, self.charge_level.paint)
-
-        # Lightning bolt
+            self.elements.append((self.charge_level.shape, self.charge_level.paint))
         if self.charging:
-            canvas.drawPath(self.lightning_bolt.shape, self.lightning_bolt.paint)
+            self.elements.append((self.lightning_bolt.shape, self.lightning_bolt.paint))
 
-        del canvas
-        stream.flush()
+        # Set SVG dimensions
+        self.svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
+        self.svg_height = self.case.height + self.case.stroke_width
