@@ -1,23 +1,26 @@
 default_language_version:
     python: python3.12
+exclude: ^.*/OpenSans-Variable.ttf$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-yaml
       - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.11
+    rev: v0.11.13
     hooks:
       - id: ruff
         args: [ --fix ]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
+    rev: v1.16.0
     hooks:
       - id: mypy
         args: [
@@ -31,7 +34,7 @@ repos:
         ]
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.7.2
+    rev: v4.8.3
     hooks:
       - id: commitizen
         stages: [commit-msg]

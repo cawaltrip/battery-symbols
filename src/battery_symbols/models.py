@@ -1,4 +1,8 @@
+from abc import ABC, abstractmethod
 from math import sqrt
+from typing import Optional
+
+import skia
 from svg import (
     C,
     H,
@@ -16,8 +20,8 @@ from svg import (
     v,
     PathData,
 )
-from typing import Optional
-import skia
+
+from battery_symbols.config import FONTS_DIR
 
 
 def _define_bounding_box(  # noqa: C901
@@ -65,6 +69,13 @@ def _define_bounding_box(  # noqa: C901
             # relative cubic Bézier; dx,dy is endpoint offset
             x += cmd.dx  # type: ignore
             y += cmd.dy  # type: ignore
+        elif isinstance(cmd, Q):
+            # absolute quadratic Bézier; .x,.y is endpoint
+            x, y = cmd.x, cmd.y
+        elif isinstance(cmd, q):
+            # relative quadratic Bézier; dx,dy is endpoint offset
+            x += cmd.dx
+            y += cmd.dy
         elif isinstance(cmd, Z):
             pass
         else:
@@ -82,73 +93,75 @@ def _define_bounding_box(  # noqa: C901
 
 def _scale_path(  # noqa: C901
     coordinates: list[PathData],
-    scale: int | float,
-    x_offset: int | float,
-    y_offset: int | float,
+    scale_x: float,
+    scale_y: float,
+    x_offset: float,
+    y_offset: float,
 ) -> list[PathData]:
     cmds: list[PathData] = []
     for cmd in coordinates:
         if isinstance(cmd, M):
-            cmds.append(M(cmd.x * scale + x_offset, cmd.y * scale + y_offset))  # type: ignore
+            cmds.append(M(cmd.x * scale_x + x_offset, cmd.y * scale_y + y_offset))  # type: ignore
         elif isinstance(cmd, m):
-            cmds.append(m(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+            cmds.append(m(cmd.dx * scale_x, cmd.dy * scale_y))  # type: ignore
         elif isinstance(cmd, L):
-            cmds.append(L(cmd.x * scale + x_offset, cmd.y * scale + y_offset))  # type: ignore
+            cmds.append(L(cmd.x * scale_x + x_offset, cmd.y * scale_y + y_offset))  # type: ignore
         elif isinstance(cmd, l):
-            cmds.append(l(cmd.dx * scale, cmd.dy * scale))  # type: ignore
+            cmds.append(l(cmd.dx * scale_x, cmd.dy * scale_y))  # type: ignore
         elif isinstance(cmd, H):
-            cmds.append(H(cmd.x * scale + x_offset))  # type: ignore
+            cmds.append(H(cmd.x * scale_x + x_offset))  # type: ignore
         elif isinstance(cmd, h):
-            cmds.append(h(cmd.dx * scale))  # type: ignore
+            cmds.append(h(cmd.dx * scale_x))  # type: ignore
         elif isinstance(cmd, V):
-            cmds.append(V(cmd.y * scale + x_offset))  # type: ignore
+            cmds.append(V(cmd.y * scale_y + y_offset))  # type: ignore
         elif isinstance(cmd, v):
-            cmds.append(v(cmd.dy * scale))  # type: ignore
+            cmds.append(v(cmd.dy * scale_y))  # type: ignore
         elif isinstance(cmd, C):
             cmds.append(
                 C(
-                    cmd.x1 * scale + x_offset,  # type: ignore
-                    cmd.y1 * scale + y_offset,  # type: ignore
-                    cmd.x2 * scale + x_offset,  # type: ignore
-                    cmd.y2 * scale + y_offset,  # type: ignore
-                    cmd.x * scale + x_offset,  # type: ignore
-                    cmd.y * scale + y_offset,  # type: ignore
+                    cmd.x1 * scale_x + x_offset,  # type: ignore
+                    cmd.y1 * scale_y + y_offset,  # type: ignore
+                    cmd.x2 * scale_x + x_offset,  # type: ignore
+                    cmd.y2 * scale_y + y_offset,  # type: ignore
+                    cmd.x * scale_x + x_offset,  # type: ignore
+                    cmd.y * scale_y + y_offset,  # type: ignore
                 )
             )
         elif isinstance(cmd, c):
             cmds.append(
                 c(
-                    cmd.dx1 * scale,  # type: ignore
-                    cmd.dy1 * scale,  # type: ignore
-                    cmd.dx2 * scale,  # type: ignore
-                    cmd.dy2 * scale,  # type: ignore
-                    cmd.dx * scale,  # type: ignore
-                    cmd.dy * scale,  # type: ignore
+                    cmd.dx1 * scale_x,  # type: ignore
+                    cmd.dy1 * scale_y,  # type: ignore
+                    cmd.dx2 * scale_x,  # type: ignore
+                    cmd.dy2 * scale_y,  # type: ignore
+                    cmd.dx * scale_x,  # type: ignore
+                    cmd.dy * scale_y,  # type: ignore
+                )
+            )
+        elif isinstance(cmd, Q):
+            cmds.append(
+                Q(
+                    cmd.x1 * scale_x + x_offset,  # type: ignore
+                    cmd.y1 * scale_y + y_offset,  # type: ignore
+                    cmd.x * scale_x + x_offset,  # type: ignore
+                    cmd.y * scale_y + y_offset,  # type: ignore
+                )
+            )
+        elif isinstance(cmd, q):
+            cmds.append(
+                q(
+                    cmd.dx1 * scale_x,  # type: ignore
+                    cmd.dy1 * scale_y,  # type: ignore
+                    cmd.dx * scale_x,  # type: ignore
+                    cmd.dy * scale_y,  # type: ignore
                 )
             )
         elif isinstance(cmd, Z):
             cmds.append(Z())
         else:  # Z()
-            print(f"Got type I can't process: {type(cmd)}")
+            print(f"_scale_path_percentage: Got type I can't process: {type(cmd)}")
 
     return cmds
-
-
-def _mask_path(subject_path: skia.Path, clip_path: skia.Path) -> skia.Path:
-    """
-    Create a mask by combining two paths.
-    The top path will be subtracted from the bottom path.
-    """
-    return skia.Op(subject_path, clip_path, skia.PathOp.kDifference_PathOp)
-
-
-def _to_path(shape: skia.RRect, paint: skia.Paint) -> skia.Path:
-    """
-    Convert a skia.RRect object to a skia.Path object.
-    """
-    path = skia.Path()
-    path.addRRect(object)
-    return path
 
 
 def _path_and_mask(
@@ -156,7 +169,19 @@ def _path_and_mask(
     subject_paint: skia.Paint,
     clip_path: Optional[skia.Path] = None,
 ) -> skia.Path:
-    old_path = skia.Path().addRRect(subject_path)
+    if isinstance(subject_path, skia.RRect):
+        old_path = skia.Path().addRRect(subject_path)
+    elif isinstance(subject_path, skia.Path):
+        # old_path = skia.Path().addPath(subject_path)
+        old_path = subject_path
+    else:
+        raise TypeError("subject_path must be skia.RRect or skia.Path")
+
+    if isinstance(clip_path, skia.RRect):
+        clip_path = skia.Path().addRRect(clip_path)
+    elif not isinstance(clip_path, skia.Path) and clip_path is not None:
+        raise TypeError("clip_path must be skia.RRect or skia.Path or None")
+
     paint = skia.Paint(subject_paint)
     new_path = skia.Path()
     paint.getFillPath(old_path, new_path)
@@ -282,78 +307,104 @@ class Anode:
 
 
 class LightningBolt:
-    """Contains the LightningBolt, scaled and centered"""
+    """Contains the lightning bolt, scaled and centered"""
 
-    base_coordinates = [
-        M(57.12, 60.58),
-        l(23.51, -29.46),
-        q(0.67, -0.89, 0.68, -1.71),
-        q(-0.16, -1.72, -1.96, -1.86),
-        h(-14.48),
-        l(7.72, -20.77),
-        q(0.60, -2.94, -1.72, -3.13),
-        q(-1.02, -0.02, -1.93, 1.05),
-        l(-23.51, 29.47),
-        q(-0.69, 0.88, -0.73, 1.70),
-        q(0.18, 1.73, 1.97, 1.86),
-        h(14.51),
-        l(-7.72, 20.81),
-        q(-0.64, 2.92, 1.70, 3.10),
-        q(1.04, 0.02, 1.96, -1.06),
+    ORIGINAL_WIDTH = 120.0
+    ORIGINAL_HEIGHT = 60.0
+
+    original_coordinates = [
+        l((23.51 / ORIGINAL_WIDTH), (-29.46 / ORIGINAL_HEIGHT)),
+        q(
+            (0.67 / ORIGINAL_WIDTH),
+            (-0.89 / ORIGINAL_HEIGHT),
+            (0.68 / ORIGINAL_WIDTH),
+            (-1.71 / ORIGINAL_HEIGHT),
+        ),
+        q(
+            (-0.16 / ORIGINAL_WIDTH),
+            (-1.72 / ORIGINAL_HEIGHT),
+            (-1.96 / ORIGINAL_WIDTH),
+            (-1.86 / ORIGINAL_HEIGHT),
+        ),
+        h((-14.48 / ORIGINAL_WIDTH)),
+        l((7.72 / ORIGINAL_WIDTH), (-20.77 / ORIGINAL_HEIGHT)),
+        q(
+            (0.6 / ORIGINAL_WIDTH),
+            (-2.94 / ORIGINAL_HEIGHT),
+            (-1.72 / ORIGINAL_WIDTH),
+            (-3.13 / ORIGINAL_HEIGHT),
+        ),
+        q(
+            (-1.02 / ORIGINAL_WIDTH),
+            (-0.02 / ORIGINAL_HEIGHT),
+            (-1.93 / ORIGINAL_WIDTH),
+            (1.05 / ORIGINAL_HEIGHT),
+        ),
+        l((-23.51 / ORIGINAL_WIDTH), (29.47 / ORIGINAL_HEIGHT)),
+        q(
+            (-0.69 / ORIGINAL_WIDTH),
+            (0.88 / ORIGINAL_HEIGHT),
+            (-0.73 / ORIGINAL_WIDTH),
+            (1.7 / ORIGINAL_HEIGHT),
+        ),
+        q(
+            (0.18 / ORIGINAL_WIDTH),
+            (1.73 / ORIGINAL_HEIGHT),
+            (1.97 / ORIGINAL_WIDTH),
+            (1.86 / ORIGINAL_HEIGHT),
+        ),
+        h((14.51 / ORIGINAL_WIDTH)),
+        l((-7.72 / ORIGINAL_WIDTH), (20.81 / ORIGINAL_HEIGHT)),
+        q(
+            (-0.64 / ORIGINAL_WIDTH),
+            (2.92 / ORIGINAL_HEIGHT),
+            (1.7 / ORIGINAL_WIDTH),
+            (3.1 / ORIGINAL_HEIGHT),
+        ),
+        q(
+            (1.04 / ORIGINAL_WIDTH),
+            (0.02 / ORIGINAL_HEIGHT),
+            (1.96 / ORIGINAL_WIDTH),
+            (-1.06 / ORIGINAL_HEIGHT),
+        ),
         Z(),
     ]
 
     def __init__(  # noqa: C901
         self,
-        battery_case: BatteryCase,
+        base_x: float,
+        base_y: float,
         base_width: float,
-        stroke_width: float = 0,
-        elem_id: str = "lightning-bolt",
+        base_height: float,
+        x_offset_percentage: float,
+        y_offset_percentage: float,
+        total_scale: float = 1.0,
+        stroke_width: float = 0.0,
     ):
-        self.stroke_width = stroke_width
-        self.id = elem_id
-        # if stroke_width > 0:
-        #     self.paint = skia.Paint(Style=skia.Paint.kStrokeAndFill_Style, Color=skia.ColorBLACK, StrokeWidth=self.stroke_width)
-        # else:
-        #     self.paint = skia.Paint(Style=skia.Paint.kFill_Style, Color=skia.ColorBLACK)
-        self.paint = skia.Paint(Style=skia.Paint.kFill_Style, Color=skia.ColorBLACK)
+        # Set the easy things
+        self.stroke_width = (
+            stroke_width * (base_width / self.ORIGINAL_WIDTH)
+            if stroke_width > 0
+            else 0.0
+        )
+        self.paint = skia.Paint(Style=skia.Paint.kFill_Style)
+        scale_x = base_width * total_scale
+        scale_y = base_height * total_scale
 
-        # Grab dimensions from the battery case
-        bc_width, bc_height = battery_case.width, battery_case.height
-        bc_x, bc_y = battery_case.x, battery_case.y
+        # Determine initial coordinates
+        x = base_x + (base_width * x_offset_percentage)
+        y = base_y + (base_height * y_offset_percentage)
 
-        # Determine if there's a scale factor
-        transform_scale = bc_width / base_width
+        commands = _scale_path(
+            coordinates=self.original_coordinates,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            x_offset=x,
+            y_offset=y,
+        )
 
-        # If the scale is 1, we can just use the base coordinates,
-        # otherwise we need to scale and center the lightning bolt
-        if transform_scale != 1:
-            # Determine the bounding box of the base coordinates
-            min_x, min_y, max_x, max_y = _define_bounding_box(
-                coordinates=self.base_coordinates
-            )
+        commands.insert(0, M(x, y))  # Start at the offset position
 
-            bolt_w = max_x - min_x
-            bolt_h = max_y - min_y
-
-            # Figure out scale + center-offset.
-            scale = min(bc_width / bolt_w, bc_height / bolt_h)
-            x_offset = bc_x + (bc_width - bolt_w * scale) / 2 - min_x * scale
-            y_offset = bc_y + (bc_height - bolt_h * scale) / 2 - min_y * scale
-
-            commands = _scale_path(
-                coordinates=self.base_coordinates,
-                scale=scale,
-                x_offset=x_offset,
-                y_offset=y_offset,
-            )
-        else:
-            commands = self.base_coordinates
-
-        # Now that the coordinates are scaled and centered, let's create the Skia Path
-        # This could probably be done with `Path.Make`, but until I understand skia better,
-        # I'll manually create the path using the commands.
-        # TODO: Figure out if the C and Q commands work properly.
         self.shape = skia.Path()
         previous_command: dict[str, float] = {}
         for cmd in commands:
@@ -368,7 +419,6 @@ class LightningBolt:
             elif isinstance(cmd, H):
                 self.shape.lineTo(cmd.x, previous_command.get("y", 0))
             elif isinstance(cmd, h):
-                # self.shape.lineTo(previous_command.get("x", 0) + cmd.dx, previous_command.get("y", 0))
                 self.shape.rLineTo(cmd.dx, 0)
             elif isinstance(cmd, V):
                 self.shape.lineTo(previous_command.get("x", 0), cmd.y)
@@ -411,65 +461,279 @@ class LightningBolt:
             self.shape = outline
 
 
-class Battery:
+class Number:
+    """
+    Represents a number in the battery SVG.
+    This is a placeholder for future use, as the current implementation does not
+    include text rendering.
+    """
+
+    def __init__(
+        self,
+        base_x: float,
+        base_y: float,
+        base_width: float,
+        base_height: float,
+        x_offset_pct: float,
+        font_path: Path,
+        level: int,
+        total_scale: float = 1.0,
+        fill_color: int = skia.ColorBLACK,
+    ):
+        self.paint = skia.Paint(Style=skia.Paint.kFill_Style, Color=fill_color)
+        text = str(max(0, min(100, level)))
+        # Load typeface and set font size based on battery height
+        typeface = skia.Typeface.MakeFromFile(str(font_path))
+        if not typeface:
+            raise RuntimeError("Couldn't load font")
+        # font_size = base_height * total_scale * 0.6
+        font_size = base_height * 0.6
+        font = skia.Font(typeface, font_size)
+
+        metrics = font.getMetrics()
+        center_offset = (metrics.fAscent + metrics.fDescent) / 2.0
+        y_offset_pct = (base_height / 2.0 - center_offset) / base_height
+
+        # Convert text → glyph IDs
+        glyph_ids = font.textToGlyphs(text, encoding=skia.TextEncoding.kUTF8)
+
+        # Compute starting pen position
+        x = base_x + base_width * x_offset_pct
+        y = base_y + base_height * y_offset_pct
+
+        rx = 6
+        ry = rx
+
+        # Build a single path by translating each glyph outline
+        path = skia.Path()
+        cursor = x
+        for gid in glyph_ids:
+            glyph_path = font.getPath(gid)
+            if glyph_path:
+                matrix = skia.Matrix.Translate(cursor, y)
+                path.addPath(glyph_path, matrix)
+            advance = font.getWidths([gid])[0]
+            cursor += advance
+
+        self.shape = path
+
+        bounding_box_rect = self.shape.computeTightBounds()
+
+        x_diff = abs(bounding_box_rect.right() - bounding_box_rect.left()) * 0.1
+        y_diff = abs(bounding_box_rect.bottom() - bounding_box_rect.top()) * 0.1
+
+        bounding_box_rect = skia.Rect(
+            (bounding_box_rect.left() - (x_diff / 2) - (rx / 2)),
+            (bounding_box_rect.top() - (y_diff / 2) - (ry / 2)),
+            (bounding_box_rect.right() + (x_diff / 2) + (rx / 2)),
+            (bounding_box_rect.bottom() + (y_diff / 2) + (ry / 2)),
+        )
+
+        self.bounding_box = skia.RRect(bounding_box_rect, rx, ry)
+        # TODO: Figure out masking.
+        # self.path_and_mask(mask_path=self.bounding_box)
+
+    def path_and_mask(self, mask_path: Optional[skia.Path] = None) -> None:
+        """
+        Create a path and apply a mask if provided.
+        """
+
+        # self.shape = _path_and_mask(self.shape, self.paint, mask_path)
+        self.shape = _path_and_mask(mask_path, self.paint, self.shape)
+
+
+class Battery(ABC):
+    """
+    Base class for battery symbols.
+    This class is not intended to be instantiated directly.
+    It serves as a base for other battery classes.
+    """
+
+    BASE_CASE_WIDTH = 120.0
+
+    def __init__(self, width: float, charging: bool, level: int, **kwargs: Path):
+        self.width = width
+        self.charging = charging
+        # Clamp level between 0 and 100
+        self.level = max(0, min(100, level))
+        self.elements: list[tuple[skia.Path, skia.Paint]] = []
+        self.svg_width = 0.0
+        self.svg_height = 0.0
+        self.transform_scale = (
+            1.0
+            if self.width == self.BASE_CASE_WIDTH
+            else self.width / self.BASE_CASE_WIDTH
+        )
+        self._assemble()
+
+    @abstractmethod
+    def _assemble(self) -> None:
+        """
+        Assemble the battery components.
+        This method should be overridden by subclasses to define the specific battery components.
+        """
+        raise NotImplementedError("Subclasses must implement _assemble method.")
+
+    def build_svg(self, output_file: Path) -> None:
+        stream = skia.FILEWStream(str(output_file))
+        canvas = skia.SVGCanvas.Make(
+            bounds=(self.svg_width, self.svg_height), stream=stream
+        )  # type: ignore[call-arg]
+        # print(f"svg_width: {self.svg_width}, svg_height: {self.svg_height}")
+
+        for shape, paint in self.elements:
+            # print(f"Drawing shape: {shape}, with paint: {paint}")
+            # Draw each shape with its corresponding paint
+            if isinstance(shape, skia.Path):
+                canvas.drawPath(shape, paint)
+            elif isinstance(shape, skia.RRect):
+                canvas.drawRRect(shape, paint)
+            elif isinstance(shape, skia.Rect):
+                canvas.drawRect(shape, paint)
+
+        del canvas
+        stream.flush()
+
+
+class SimpleBattery(Battery):
     """
     Combines BatteryCase, Anode, BatteryChargeLevel, and LightningBolt
     and renders the complete battery SVG, with configurable charge state
     and level.
     """
 
-    base_battery_case_width = 120
-
-    def __init__(  # noqa: C901
+    def __init__(
         self,
-        width: float = base_battery_case_width,
+        width: float = Battery.BASE_CASE_WIDTH,
         charging: bool = False,
         level: int = 100,
+        **kwargs: Path,
     ):
-        self.case = BatteryCase(width)
+        super().__init__(width, charging, level)
+
+    def _assemble(self) -> None:
+        """
+        Assemble the battery components.
+        This method defines the specific battery components for the SimpleBattery.
+        """
+        self.case = BatteryCase(self.width)
         self.anode = Anode(self.case)
-        self.charging = charging
-        # clamp level between 0 and 100
-        self.level = max(0, min(100, level))
         self.charge_level = BatteryChargeLevel(self.case, self.charging, self.level)
-        self.lightning_bolt = LightningBolt(self.case, self.base_battery_case_width)
+
+        # Determine lightning bolt offsets:
+        bolt_x_offset_percentage = 0.45
+        bolt_y_offset_percentage = 0.96
+
+        self.lightning_bolt = LightningBolt(
+            self.case.x,
+            self.case.y,
+            self.case.width,
+            self.case.height,
+            bolt_x_offset_percentage,
+            bolt_y_offset_percentage,
+        )
         self.lightning_bolt_mask = LightningBolt(
-            self.case, self.base_battery_case_width, 12, elem_id="lightning-bolt-mask"
+            self.case.x,
+            self.case.y,
+            self.case.width,
+            self.case.height,
+            bolt_x_offset_percentage,
+            bolt_y_offset_percentage,
+            stroke_width=12,
         )
 
         mask = self.lightning_bolt_mask.shape if self.charging else None
         self.case.path_and_mask(mask)
         self.charge_level.path_and_mask(mask)
 
-        # Keeping this in case it's needed later, but I don't think it's strictly necessary for what we're doing here.
-        self.elements: list[
-            BatteryCase | Anode | BatteryChargeLevel | LightningBolt
-        ] = [self.case, self.anode, self.charge_level]
-        if self.charging:
-            self.elements.append(self.lightning_bolt)
-            self.elements.append(self.lightning_bolt_mask)
+        # Add elements to the list
+        self.elements = [
+            (self.case.shape, self.case.paint),
+            (self.anode.shape, self.anode.paint),
+        ]
 
-    def build_svg(self, output_file: Path) -> None:
-        # Canvas dimensions
-        svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
-        svg_height = self.case.height + self.case.stroke_width
-
-        stream = skia.FILEWStream(str(output_file))
-        canvas = skia.SVGCanvas.Make(bounds=(svg_width, svg_height), stream=stream)  # type: ignore[call-arg]
-
-        # Battery case
-        canvas.drawPath(self.case.shape, self.case.paint)
-
-        # Anode
-        canvas.drawPath(self.anode.shape, self.anode.paint)
-
-        # Charge level
         if self.level > 0:
-            canvas.drawPath(self.charge_level.shape, self.charge_level.paint)
-
-        # Lightning bolt
+            self.elements.append((self.charge_level.shape, self.charge_level.paint))
         if self.charging:
-            canvas.drawPath(self.lightning_bolt.shape, self.lightning_bolt.paint)
+            self.elements.append((self.lightning_bolt.shape, self.lightning_bolt.paint))
 
-        del canvas
-        stream.flush()
+        # Set SVG dimensions
+        self.svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
+        self.svg_height = self.case.height + self.case.stroke_width
+
+
+class NumberBattery(Battery):
+    def __init__(
+        self,
+        width: float = Battery.BASE_CASE_WIDTH,
+        charging: bool = False,
+        level: int = 100,
+        font_path: Path = (FONTS_DIR / "OpenSans-Variable.ttf"),
+    ):
+        self.font_path = font_path
+        super().__init__(width, charging, level)
+
+    # TODO: Put number in the right place at the right size.  Pad to 2 digits minimum.  Figure out masking.
+    def _assemble(self) -> None:
+        self.case = BatteryCase(self.width)
+        self.anode = Anode(self.case)
+        self.charge_level = BatteryChargeLevel(self.case, self.charging, self.level)
+
+        # Determine lightning bolt offsets:
+        bolt_x_offset_percentage = 0.75
+        bolt_y_offset_percentage = 0.73
+        lightning_bolt_total_scale = 0.5
+
+        self.lightning_bolt = LightningBolt(
+            self.case.x,
+            self.case.y,
+            self.case.width,
+            self.case.height,
+            bolt_x_offset_percentage,
+            bolt_y_offset_percentage,
+            lightning_bolt_total_scale,
+        )
+        self.lightning_bolt_mask = LightningBolt(
+            self.case.x,
+            self.case.y,
+            self.case.width,
+            self.case.height,
+            bolt_x_offset_percentage,
+            bolt_y_offset_percentage,
+            lightning_bolt_total_scale,
+            stroke_width=4,
+        )
+        self.number = Number(
+            base_x=self.case.x + (self.case.width * 0.1),
+            base_y=self.case.y + (self.case.height * 0.1),
+            base_width=self.case.width * 0.8,
+            base_height=self.case.height * 0.8,
+            x_offset_pct=0.1,
+            font_path=self.font_path,
+            level=self.level,
+            total_scale=self.transform_scale,
+        )
+
+        bolt_mask = self.lightning_bolt_mask.shape if self.charging else None
+        number_mask = self.number.bounding_box
+        self.case.path_and_mask(bolt_mask)
+        self.charge_level.path_and_mask(bolt_mask)
+        self.charge_level.path_and_mask(number_mask)
+        # self.number.path_and_mask(number_mask)
+
+        # Add elements to the list
+        self.elements = [
+            (self.case.shape, self.case.paint),
+            (self.anode.shape, self.anode.paint),
+        ]
+
+        if self.level > 0:
+            self.elements.append((self.charge_level.shape, self.charge_level.paint))
+        if self.charging:
+            self.elements.append((self.lightning_bolt.shape, self.lightning_bolt.paint))
+
+        self.elements.append((self.number.shape, self.number.paint))
+
+        # Set SVG dimensions
+        self.svg_width = self.anode.x_chord + (self.anode.r - (self.anode.r / 3))
+        self.svg_height = self.case.height + self.case.stroke_width
