@@ -4,6 +4,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 BUILD_DIR = PROJECT_ROOT / "build"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
+ASSETS_DIR = PROJECT_ROOT / "assets"
+
+FONTS_DIR = ASSETS_DIR / "fonts"
 
 RAW_DIR = BUILD_DIR / "raw"
 RAW_CHARGE_DIR = RAW_DIR / "charging"

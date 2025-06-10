@@ -19,8 +19,7 @@ from svgwrite import Drawing
 from battery_symbols.config import (
     PROJECT_ROOT,
     EXAMPLES_DIR,
-    RAW_CHARGE_DIR,
-    RAW_DISCHARGE_DIR,
+    RAW_DIR,
 )
 
 EM_SIZE = 1000  # units per em
@@ -58,15 +57,14 @@ def draw_scaled(
     extra_space: int | float = EM_SIZE - glyph_width
     tx = -x0 * scale + extra_space / 2
     ty = (h + y0) * scale
-    t_pen = TransformPen(pen, (scale, 0, 0, -scale, tx, ty))
+    t_pen = TransformPen(pen, (scale, 0, 0, scale, tx, -ty))
     SVGPath(str(svg_file)).draw(t_pen)
     return extra_space
 
 
-def gather_svgs(discharge_glyphs_dir: Path, charge_glyphs_dir: Path) -> list[Path]:
-    discharge_glyphs = sorted(discharge_glyphs_dir.glob("**/*.svg"))
-    charge_glyphs = sorted(charge_glyphs_dir.glob("**/*.svg"))
-    return discharge_glyphs + charge_glyphs
+def gather_svgs(raw_dir: Path) -> list[Path]:
+    svg_paths = sorted(raw_dir.glob("**/*.svg"))
+    return svg_paths
 
 
 def build_font(
@@ -136,7 +134,7 @@ def build_font(
     print(f"Wrote {output_file}.")
 
 
-def extract_and_save_sample_glyphs(font_path: Path, output_path: Path) -> None:
+def extract_and_save_sample_glyphs(font_path: Path, output_path: Path) -> list[str]:
     """
     Extract sample glyphs from the font we've created.  Probably good to have
     the charged and discharged glyphs for charge_level % 10 == 0.  We know
@@ -147,18 +145,41 @@ def extract_and_save_sample_glyphs(font_path: Path, output_path: Path) -> None:
 
     font = TTFont(str(font_path))
     glyph_set = font.getGlyphSet()
+    glyph_order = font.getGlyphOrder()
+    battery_name_dict: dict[str, int] = {}
 
-    icons = [f"battery_charge_{(10 * i):0>3}" for i in range(11)]
-    icons += [f"battery_discharge_{(10 * i):0>3}" for i in range(11)]
+    pattern = compile(r"_(\d{3})$")
+    battery_name_pattern = compile(r"battery_([^_]+)_(charge|discharge)_(\d{3})$")
 
-    for name in icons:
-        try:
-            glyph = glyph_set.glyfTable.glyphs[name]
-        except KeyError:
-            print(f"Glyph {name} not found.")
+    for name in glyph_order:
+        match = pattern.search(name)
+        if not match:
             continue
+        percent = int(match.group(1))
+        if percent % 10:
+            continue
+
+        try:
+            # glyph = glyph_set[name]
+            glyph = glyph_set.glyfTable.glyphs[name]
+            position = glyph_order.index(name)
+            try:
+                battery_name = battery_name_pattern.search(name).group(1)  # type: ignore
+            except AttributeError:
+                print(f"Glyph {name} does not match expected pattern.")
+                continue
+            if battery_name not in battery_name_dict.keys():
+                battery_name_dict[battery_name] = position
+
+            if battery_name_dict[battery_name] > position:
+                battery_name_dict[battery_name] = position
+        except KeyError:
+            print(f"Glyph {name} not found in glyfTable.")
+            continue
+
         pen = SVGPathPen(glyph_set)
         glyph.draw(pen, glyph_set.glyfTable)
+
         x_min, y_min, x_max, y_max = glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax
         width = x_max - x_min
         height = y_max - y_min
@@ -170,50 +191,55 @@ def extract_and_save_sample_glyphs(font_path: Path, output_path: Path) -> None:
         drawing.add(drawing.path(d=path))
         drawing.save()
 
+    return sorted(battery_name_dict, key=battery_name_dict.__getitem__)
 
-def write_cheatsheet(svg_path: Path, root_dir: Path) -> str:
-    filelist = svg_path.glob("**/*.svg")
-    pattern = compile(r"battery_(charge|discharge)_(\d{3})\.svg$")
-    files: dict[int, dict[str, Path]] = {}
 
-    for path in filelist:
-        m = pattern.match(path.name)
-        if not m:
-            continue
-
-        kind, num_str = m.groups()  # e.g. kind="charge", num_str="010"
-        pct = int(num_str)  # 10
-        # initialize sub-dict if needed, then assign
-        files.setdefault(pct, {})[kind] = path.relative_to(root_dir)
-
-    # if you want the keys sorted:
-    files = {k: files[k] for k in sorted(files)}
-
+def write_cheatsheet(
+    examples_path: Path, readme_dir: Path, battery_list: list[str]
+) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
     width_px = 60  # tweak to taste
-    lines = []
+    for battery_name in battery_list:
+        files: dict[int, dict[str, Path]] = {}
+        pattern = compile(
+            r"battery_" + battery_name + r"_(charge|discharge)_(\d{3})\.svg$"
+        )  # noqa: E501
 
-    # 1) header row
-    pct_list = sorted(files)
-    header = "| " + " | ".join(f"{p}%" for p in pct_list) + " |"
-    lines.append(header)
+        filelist = sorted(examples_path.glob("**/*.svg"))
+        for file_ in filelist:
+            match = pattern.match(file_.name)
+            if not match:
+                continue
+            kind, num_str = match.groups()  # e.g. kind="charge", num_str="010"
+            pct = int(num_str)  # 10
+            files.setdefault(pct, {})[kind] = file_.relative_to(readme_dir)
+        files = {k: files[k] for k in sorted(files)}
 
-    # 2) alignment row (centered)
-    align = "| " + " | ".join(":--:" for _ in pct_list) + " |"
-    lines.append(align)
+        lines = []
 
-    # 3) content row
-    cells = []
-    for p in pct_list:
-        fn = files[p]
-        cell = (
-            f'<img src="{fn["discharge"]}" width="{width_px}" alt="Discharge {p}%"><br>'
-            f'<img src="{fn["charge"]}"   width="{width_px}" alt="Charge {p}%">'
-        )
-        cells.append(cell)
+        # 1) header row
+        pct_list = sorted(files)
+        header = "| " + " | ".join(f"{p}%" for p in pct_list) + " |"
+        lines.append(header)
 
-    lines.append("| " + " | ".join(cells) + " |")
+        # 2) alignment row (centered)
+        align = "| " + " | ".join(":--:" for _ in pct_list) + " |"
+        lines.append(align)
 
-    return "\n".join(lines)
+        # 3) content row
+        cells = []
+        for p in pct_list:
+            fn = files[p]
+            cell = (
+                f'<img src="{fn["discharge"]}" width="{width_px}" alt="Discharge {p}%"><br>'
+                f'<img src="{fn["charge"]}"   width="{width_px}" alt="Charge {p}%">'
+            )
+            cells.append(cell)
+
+        lines.append("| " + " | ".join(cells) + " |")
+        result.append((battery_name, "\n".join(lines)))
+
+    return result
 
 
 def _get_section_heading(token: Heading) -> str:
@@ -224,7 +250,9 @@ def _get_section_heading(token: Heading) -> str:
 
 
 def replace_cheatsheet(
-    readme_path: Path, new_content: str, cheatsheet_heading: str = "Examples"
+    readme_path: Path,
+    new_content: list[tuple[str, str]],
+    cheatsheet_heading: str = "Examples",
 ) -> None:
     try:
         with open(readme_path) as f:
@@ -249,15 +277,20 @@ def replace_cheatsheet(
                 capture = True
                 continue
 
-            if capture and node.level >= heading_level:
+            if capture and node.level <= heading_level:
                 capture_end = i
-                capture = False
                 break
 
     if capture_start is None:
         return
 
-    frag_doc = Document(new_content.splitlines(keepends=True))
+    final_content = ""
+    for subheading, content in new_content:
+        final_content += (
+            f"{'#' * (heading_level + 1)} {subheading.title()} Style\n{content}\n"
+        )
+
+    frag_doc = Document(final_content.splitlines(keepends=True))
     new_tokens = frag_doc.children
 
     new_readme = doc.children[0 : capture_start + 1]
@@ -279,11 +312,11 @@ def main() -> None:
 
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    svgs = gather_svgs(RAW_DISCHARGE_DIR, RAW_CHARGE_DIR)
+    svgs = gather_svgs(RAW_DIR)
 
     build_font(svgs, BASE_CODEPOINT, output_font_file)
-    extract_and_save_sample_glyphs(output_font_file, EXAMPLES_DIR)
-    cheatsheet_content = write_cheatsheet(EXAMPLES_DIR, PROJECT_ROOT)
+    battery_name_list = extract_and_save_sample_glyphs(output_font_file, EXAMPLES_DIR)
+    cheatsheet_content = write_cheatsheet(EXAMPLES_DIR, PROJECT_ROOT, battery_name_list)
     replace_cheatsheet(readme_file, cheatsheet_content)
 
 
